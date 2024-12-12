@@ -1,0 +1,4 @@
+*.toml
+migrations/
+node_modules/
+.idea
