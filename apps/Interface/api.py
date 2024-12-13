@@ -115,6 +115,28 @@ async def del_case(case_id: int):
 # 运行用例
 @router.post("/cases/run", summary="运行用例")
 async def run_case(env_id: int, cases: dict):
+    """
+    {
+        "title": "登录成功用例",
+        "interface":
+             {
+                 "url": "/account/login/",
+                 "method": "post"
+             },
+             "headers":
+             {
+                 "Content-Type": "application/json"
+             },
+             "request": {
+                 "json": {
+                     "username": "teemo",
+                     "password": "666666"
+                 }
+             },
+             "setup_script": "",
+             "teardown_script": ""
+    }
+    """
     if not all([env_id, cases]):
         return "参数错误，env和cases不能为空"
     env = await Env.get_or_none(id=env_id)
@@ -138,7 +160,7 @@ async def run_case(env_id: int, cases: dict):
             "Cases": [cases]
         }
     ]
-    runner = TestRunner(case_datas, env).run()
+    runner = TestRunner(case_datas, env_config).run()
     # 调用引擎的run_test方法
     # result, ENV = run_test(case_data=cases_datas, env_config=env_config, debug=True)
     # 将运行的环境变量保存到测试环境debug_global_variable中

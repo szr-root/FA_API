@@ -72,13 +72,13 @@ class BaseCase(CaseLogHandel):
         url = data['interface']['url']
         if not url.startswith('http'):
             # 和base_url进行拼接
-            url = ENV.get('base_url') + url
+            url = ENV['ENV'].get('host') + url
         request_data["url"] = url
         self.url = url
         self.method = data['interface']['method']
         # 2、处理请求的headers
         # 获取全局请求头
-        headers: dict = ENV.get('headers')
+        headers: dict = ENV['ENV'].get('headers')
         # 将全局请求头和当前用例中的请求头进行合并
         headers.update(data['headers'])
         request_data['headers'] = headers
@@ -117,7 +117,7 @@ class BaseCase(CaseLogHandel):
             # 获取匹配到的内容中的变量
             key = match.group(1)
             # 获取全局变量中的值
-            value = ENV.get('Envs').get(key)
+            value = ENV.get('ENV').get(key)
             # 将匹配到的内容中的变量替换为全局变量中的值
             data = data.replace(match.group(), str(value))
 
