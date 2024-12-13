@@ -16,6 +16,7 @@ INSTALLED_APPS = [
     'apps.users.models',
     'apps.projects.models',
     'apps.Interface.models',
+    'apps.Suite.models',
 ]
 
 # ############## tortoise的基本配置 ###############
