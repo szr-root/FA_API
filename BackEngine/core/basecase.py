@@ -4,6 +4,8 @@
 # @File : basecase.py
 
 import re
+import time
+
 import requests
 # 导入内置的测试工具函数
 from BackEngine.core import testtools as my_functools
@@ -91,15 +93,19 @@ class BaseCase(CaseLogHandel):
         # 表单参数：contentType:application/x-www-form-urlencoded
         # 文件上传：contentType:multipart/form-data;
         # 请求体参数（json,表单，文件上传）
-        if headers.get('Content-Type') == 'application/json':
+        if headers.get('Content-Type') is not None:
+            if headers.get('Content-Type') == 'application/json':
+                request_data['json'] = request.get('json')
+                self.request_body = request.get('json')
+            if headers.get('Content-Type') == 'application/x-www-form-urlencoded':
+                request_data['data'] = request.get('data')
+                self.request_body = request.get('data')
+            elif 'multipart/form-data' in headers.get('Content-Type'):
+                request_data['files'] = request.get('files')
+                self.request_body = request.get('files')
+        else:
             request_data['json'] = request.get('json')
             self.request_body = request.get('json')
-        elif headers.get('Content-Type') == 'application/x-www-form-urlencoded':
-            request_data['data'] = request.get('data')
-            self.request_body = request.get('data')
-        elif 'multipart/form-data' in headers.get('Content-Type'):
-            request_data['files'] = request.get('files')
-            self.request_body = request.get('files')
         # 替换用例中的变量
         request_data = self.replace_data(request_data)
 
@@ -132,12 +138,14 @@ class BaseCase(CaseLogHandel):
         # 处理用例的请求数据(替换请求参数中的变量，将数据转换为requests发送请求所需要的格式)
         request_data = self.__handler_requests_data(data)
         self.info_log(request_data)
+        start_time = time.time()
         # 发送请求
         response = requests.request(**request_data)
-        # self.request_headers = response.request.headers
-        # self.response_headers = response.headers
-        # self.response_body = response.text
-        # self.request_body = response.request.body
+        self.request_header = response.request.headers
+        self.response_header = response.headers
+        self.response_body = response.text
+        self.request_body = response.request.body
+        self.run_time = str(round(time.time() - start_time, 2)) + 's'
         self.status_code = response.status_code
         self.info_log('请求地址', response.url)
         self.info_log('请求方式', response.request.method)

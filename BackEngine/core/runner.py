@@ -16,7 +16,8 @@ class TestResult:
         self.success = 0
         self.fail = 0
         self.error = 0
-        self.casses = []
+        self.cases = []
+        # self.run_time = 0
 
     def add_success(self, test: BaseCase):
         """
@@ -33,12 +34,13 @@ class TestResult:
             "status": "success",
             "request_header": getattr(test, 'request_header', ''),
             "request_body": getattr(test, 'request_body', ''),
+            "run_time": getattr(test, 'run_time', ''),
             "response_header": getattr(test, 'response_header', ''),
             "response_body": getattr(test, 'response_body', ''),
             "log_data": getattr(test, 'log_data', ''),
 
         }
-        self.casses.append(info)
+        self.cases.append(info)
 
     def add_fail(self, test):
         # """执行失败"""
@@ -51,12 +53,13 @@ class TestResult:
             "status": "fail",
             "request_header": getattr(test, 'request_header', ''),
             "request_body": getattr(test, 'request_body', ''),
+            "run_time": getattr(test, 'run_time', ''),
             "response_header": getattr(test, 'response_header', ''),
             "response_body": getattr(test, 'response_body', ''),
             "log_data": getattr(test, 'log_data', ''),
 
         }
-        self.casses.append(info)
+        self.cases.append(info)
 
     def add_error(self, test: BaseCase, error):
         """
@@ -77,13 +80,14 @@ class TestResult:
             "status": "error",
             "request_header": getattr(test, 'request_header', ''),
             "request_body": getattr(test, 'request_body', ''),
+            "run_time": getattr(test, 'run_time', ''),
             "response_header": getattr(test, 'response_header', ''),
             "response_body": getattr(test, 'response_body', ''),
             "log_data": getattr(test, 'log_data', ''),
 
         }
 
-        self.casses.append(info)
+        self.cases.append(info)
 
     def get_result_info(self):
         return {
@@ -92,8 +96,9 @@ class TestResult:
             "success": self.success,
             "fail": self.fail,
             "error": self.error,
-            "casses": self.casses,
-            "status": 'success' if self.success == self.all else ('error' if self.error > 0 else 'fail')
+            "cases": self.cases,
+            "status": 'success' if self.success == self.all else ('error' if self.error > 0 else 'fail'),
+            # "run_time": self.run_time
         }
 
 
@@ -166,17 +171,21 @@ class TestRunner:
 
     def perform(self, case, result):
         c = BaseCase()
+        # run_time = 0
         try:
             c.perform(case)
         except AssertionError as e:
             # print('用例断言失败')
             result.add_fail(c)
+            # result.run_time = run_time
         except Exception as e:
             # print('用例执行错误')
             result.add_error(c, e)
+            # result.run_time = run_time
         else:
             # print('用例执行通过')
             result.add_success(c)
+            # result.run_time = run_time
 
 
 if __name__ == '__main__':

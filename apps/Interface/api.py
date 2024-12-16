@@ -37,14 +37,18 @@ async def get_interfaces(pro_id: int):
     if not project:
         raise HTTPException(status_code=422, detail="项目不存在")
 
-    interfaces = await InterFace.filter(project=project)
+    interfaces = await InterFace.filter(project=project).prefetch_related('cases')
     return [{
         "id": interface.id,
         "project": project.name,
         "name": interface.name,
         "method": interface.method,
         "url": interface.url,
-        "type": interface.type
+        "type": interface.type,
+        "cases": [{
+            "id": case.id,
+            "title": case.title
+        } for case in interface.cases]
     } for interface in interfaces]
 
 
@@ -87,10 +91,26 @@ async def add_case(item: AddInterFaceCaseForm):
 # 获取用例详情的接口
 @router.get("/cases/{case_id}", summary="获取用例详情")
 async def get_case(case_id: int):
-    case = await InterFaceCase.get_or_none(id=case_id)
+    case = await InterFaceCase.get_or_none(id=case_id).select_related("interface")
+    print(case.id)
     if not case:
         raise HTTPException(status_code=422, detail="用例不存在")
-    return case
+    return {
+        "id": case_id,
+        "title": case.title,
+        "headers": case.headers,
+        "interface": {
+            "id": case.interface.id,
+            "name": case.interface.name,
+            "url": case.interface.url,
+            "method": case.interface.method,
+            "type": case.interface.type
+        },
+        "request": case.request,
+        "file": case.file,
+        "setup_script": case.setup_script,
+        "teardown_script": case.teardown_script
+    }
 
 
 # 修改用例
@@ -166,5 +186,5 @@ async def run_case(env_id: int, cases: dict):
     # 将运行的环境变量保存到测试环境debug_global_variable中
     # env.debug_global_variable = ENV
     # env.save()
-    return runner
+    return runner[0][0]['cases'][0]
     # return Response(result['results'][0]['cases'][0])

@@ -40,3 +40,4 @@ class UpdateInterFaceCaseForm(AddInterFaceCaseForm):
     setup_script: str = Field(description="前置脚本", default="")
     teardown_script: str = Field(description="后置脚本", default="")
 
+

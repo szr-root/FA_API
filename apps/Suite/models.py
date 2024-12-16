@@ -15,7 +15,7 @@ class Suite(models.Model):
         return self.name
 
     class Meta:
-        table = 'suite'
+        table = 'Suite'
         table_description = '测试套件'
 
 
@@ -29,5 +29,5 @@ class SuiteToCase(models.Model):
         return self.suite_case.title
 
     class Meta:
-        table = 'suite_to_case'
+        table = 'Suite_To_Case'
         table_description = '套件中用例执行顺序'
