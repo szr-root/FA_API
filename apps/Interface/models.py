@@ -24,6 +24,7 @@ class InterFace(models.Model):
 
 
 class InterFaceCase(models.Model):
+
     """接口用例表"""
     title = fields.CharField(max_length=50, description='用例标题')
     interface = fields.ForeignKeyField('models.InterFace', related_name='cases', description='关联接口')

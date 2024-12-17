@@ -26,3 +26,8 @@ class SuiteSchema(BaseModel):
     id: int = Field(description='套件id')
     name: str = Field(description='套件名称')
     project: int = Field(description='关联项目')
+
+
+class SuiteRunForm(BaseModel):
+    env: int = Field(description='环境id')
+    suite: int = Field(description='套件id')
