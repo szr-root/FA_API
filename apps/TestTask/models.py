@@ -49,3 +49,10 @@ class TestReport(models.Model):
     record = fields.ForeignKeyField('models.TestRecord', related_name='report', description='关联记录',
                                     on_delete=tortoise.fields.CASCADE)
     info = fields.JSONField(description='报告信息', default=dict, blank=True)
+
+    def __str__(self):
+        return str(self.pk)
+
+    class Meta:
+        table = 'TestReport'
+        table_description = '测试报告'

@@ -10,3 +10,7 @@ class AddTaskForm(BaseModel):
     name: str = Field(description='任务名称')
     project: int = Field(description='关联项目')
     suite: list[int] = Field(description='关联套件')
+
+
+class UpdateForm(AddTaskForm):
+    pass
