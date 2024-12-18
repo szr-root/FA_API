@@ -90,7 +90,7 @@ async def get_icases(suite_id: int):
     return details
 
 
-# 运行测试业务流 todo
+# 运行测试业务流
 @router.post('/scenes/run', summary='运行测试业务流')
 async def run_scenes(item: SuiteRunForm):
     env_id = item.env

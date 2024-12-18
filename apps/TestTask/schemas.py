@@ -14,3 +14,8 @@ class AddTaskForm(BaseModel):
 
 class UpdateForm(AddTaskForm):
     pass
+
+
+class RunTaskForm(BaseModel):
+    env: int = Field(description='关联环境')
+    task: int = Field(description='关联任务')
