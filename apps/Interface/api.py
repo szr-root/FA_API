@@ -14,7 +14,7 @@ router = APIRouter(prefix='/api/TestInterFace', tags=['接口/用例管理'])
 
 # ############################################# 接口相关 #############################################
 # 创建接口
-@router.post("/interfaces", summary="创建接口")
+@router.post("/interfaces", summary="创建接口",status_code=201)
 async def create_interFace(item: AddInterFaceForm):
     """
     创建接口
@@ -29,11 +29,11 @@ async def create_interFace(item: AddInterFaceForm):
 
 # 获取接口列表
 @router.get("/interfaces", summary="获取接口列表")
-async def get_interfaces(pro_id: int):
+async def get_interfaces(project: int):
     """
     获取接口列表
     """
-    project = await Project.get_or_none(id=pro_id)
+    project = await Project.get_or_none(id=project)
     if not project:
         raise HTTPException(status_code=422, detail="项目不存在")
 
@@ -61,6 +61,8 @@ async def update_interface(_id: int, item: UpdateInterFaceForm):
     interface = await InterFace.get_or_none(id=_id)
     if not interface:
         raise HTTPException(status_code=422, detail="接口不存在")
+    project = await Project.get_or_none(id=item.project)
+    item.project = project
     await interface.update_from_dict(item.dict(exclude_unset=True)).save()
     return interface
 
@@ -79,7 +81,7 @@ async def del_interface(_id: int):
 
 # ############################################# 用例相关 #############################################
 # 添加测试用例
-@router.post("/cases", summary="添加测试用例")
+@router.post("/cases", summary="添加测试用例",status_code=201)
 async def add_case(item: AddInterFaceCaseForm):
     interface = await InterFace.get_or_none(id=item.interface)
     if not interface:
@@ -181,10 +183,4 @@ async def run_case(env_id: int, cases: dict):
         }
     ]
     runner = TestRunner(case_datas, env_config).run()
-    # 调用引擎的run_test方法
-    # result, ENV = run_test(case_data=cases_datas, env_config=env_config, debug=True)
-    # 将运行的环境变量保存到测试环境debug_global_variable中
-    # env.debug_global_variable = ENV
-    # env.save()
-    return runner[0][0]['cases'][0]
-    # return Response(result['results'][0]['cases'][0])
+    return runner[0]['cases'][0]

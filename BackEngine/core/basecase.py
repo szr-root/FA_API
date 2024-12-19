@@ -8,6 +8,8 @@ import time
 
 import requests
 # 导入内置的测试工具函数
+from requests.structures import CaseInsensitiveDict
+
 from BackEngine.core import testtools as my_functools
 from jsonpath import jsonpath
 from BackEngine.core.caselog import CaseLogHandel
@@ -129,6 +131,19 @@ class BaseCase(CaseLogHandel):
 
         return eval(data)
 
+    def convert_to_dict(self,obj):
+        """Recursively converts a CaseInsensitiveDict to a regular dict."""
+        if isinstance(obj, CaseInsensitiveDict):
+            return dict(obj)
+        elif isinstance(obj, dict):
+            return {k: self.convert_to_dict(v) for k, v in obj.items()}
+        elif hasattr(obj, '__dict__'):
+            return self.convert_to_dict(vars(obj))
+        elif isinstance(obj, list):
+            return [self.convert_to_dict(element) for element in obj]
+        else:
+            return obj
+
     def __send_request(self, data):
         """
         发送请求的方法
@@ -141,10 +156,10 @@ class BaseCase(CaseLogHandel):
         start_time = time.time()
         # 发送请求
         response = requests.request(**request_data)
-        self.request_header = response.request.headers
-        self.response_header = response.headers
+        self.request_header = self.convert_to_dict(response.request.headers)
+        self.response_header = self.convert_to_dict(response.headers)
         self.response_body = response.text
-        self.request_body = response.request.body
+        self.request_body = response.request.body.decode('utf-8')
         self.run_time = str(round(time.time() - start_time, 2)) + 's'
         self.status_code = response.status_code
         self.info_log('请求地址', response.url)

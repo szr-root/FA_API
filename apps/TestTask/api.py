@@ -119,11 +119,10 @@ async def run_task(item: RunTaskForm):
     for suite in task.suite:
         res = await run_scenes(SuiteRunForm(**{"env": item.env, "suite": suite.id}))
         result.append(res)
-        await TestReport.create(record=record, info=res[0][0])
-        all_ += res[0][0]['all']
-        success += res[0][0]['success']
-        fail += res[0][0]['fail']
-        error += res[0][0]['error']
+        all_ += res[0]['all']
+        success += res[0]['success']
+        fail += res[0]['fail']
+        error += res[0]['error']
 
     pass_rate = str(round((success / all_) * 100, 2))
     if success == all_:
@@ -132,7 +131,7 @@ async def run_task(item: RunTaskForm):
         status = 'error'
     else:
         status = 'fail'
-    run_time = str(round(time.time() - start_time, 2))
+    run_time = str(round(time.time() - start_time, 2)) + 's'
     record.all = all_
     record.success = success
     record.fail = fail
@@ -141,10 +140,30 @@ async def run_task(item: RunTaskForm):
     record.run_time = run_time
     record.status = status
     await record.save()
+    info = {
+        "all": all_,
+        "fail": fail,
+        "error": error,
+        "success": success,
+        "results": result,
+    }
+    await TestReport.create(record=record, info=info)
     return result
 
-# 获取所有运行记录
 
-# 获取运行记录详情
+# 获取所有运行记录
+@router.get('/record/{task_id}', summary='获取所有运行记录')
+async def get_record(task_id: int):
+    records = await TestRecord.filter(task_id=task_id).select_related('task').select_related('env')
+    return [{"id": record.pk, "task": record.task.name, "env": record.env.name, "tester": record.tester,
+             "all": record.all, "success": record.success, "fail": record.fail, "error": record.error,
+             "pass_rate": record.pass_rate, "run_time": record.run_time, "status": record.status,
+             "create_time": record.create_time.strftime("%Y-%m-%d %H:%M:%S")
+             } for record in records]
+
 
 # 获取测试报告
+@router.get('/report/{record_id}', summary='获取测试报告')
+async def get_report(record_id: int):
+    report = await TestReport.filter(record_id=record_id)
+    return report[0]

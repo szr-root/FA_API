@@ -33,7 +33,7 @@ async def login_for_access_token(
     return Token(access_token=token, token_type="bearer")
 
 
-@router.post("/register", tags=["用户管理"], summary="用户注册", response_model=UserInfoSchema)
+@router.post("/register/", tags=["用户管理"], summary="用户注册", response_model=UserInfoSchema)
 async def register(item: RegisterForm):
     # 校验两次密码是否一致
     if item.password != item.password_confirm:
@@ -56,7 +56,7 @@ async def register(item: RegisterForm):
     return UserInfoSchema(**user.__dict__)
 
 
-@router.post("/login", tags=["用户管理"], summary="用户登录", response_model=LoginSchema)
+@router.post("/login/", tags=["用户管理"], summary="用户登录", response_model=LoginSchema)
 async def login(item: LoginForm):
     """登录的逻辑,实现用户名、手机号、邮箱均可以作为账号登录"""
     user1 = await Users.get_or_none(username=item.username)
@@ -75,7 +75,7 @@ async def login(item: LoginForm):
 
 
 # 校验token
-@router.post("/verify", tags=["用户管理"], summary="校验token", response_model=UserInfoSchema)
+@router.post("/verify/", tags=["用户管理"], summary="校验token", response_model=UserInfoSchema)
 async def verify_token(item: TokenForm):
     """
     校验token
@@ -90,7 +90,7 @@ async def verify_token(item: TokenForm):
 
 
 # 刷新token
-@router.post("/refresh", tags=["用户管理"], summary="刷新token", response_model=TokenForm)
+@router.post("/refresh/", tags=["用户管理"], summary="刷新token", response_model=TokenForm)
 async def refresh_token(item: TokenForm):
     """
     刷新token

@@ -65,9 +65,9 @@ async def update_scenes(suite_id: int, item: list[UpdateOrder]):
 
 
 # 获取业务流中所有用例
-@router.get('/icases/{suite_id}', summary='获取业务流中所有用例')
-async def get_icases(suite_id: int):
-    suite = await Suite.get_or_none(id=suite_id)
+@router.get('/icases/{scene}', summary='获取业务流中所有用例')
+async def get_icases(scene: int):
+    suite = await Suite.get_or_none(id=scene)
     if not suite:
         raise HTTPException(status_code=422, detail="业务流不存在")
 

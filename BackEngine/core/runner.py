@@ -167,7 +167,7 @@ class TestRunner:
             self.result.append(result.get_result_info())
         # 断开连接
         db.close_db_connection()
-        return self.result, 'DEBUG'
+        return self.result
 
     def perform(self, case, result):
         c = BaseCase()

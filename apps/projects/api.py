@@ -14,7 +14,7 @@ router = APIRouter(prefix='/api/testPro', tags=['项目'])
 
 # ############################################# 项目相关 #############################################
 # 创建项目
-@router.post("/projects", tags=["项目"], summary="创建项目")
+@router.post("/projects", tags=["项目"], summary="创建项目",status_code=201)
 async def add_project(item: AddProjectForm):
     leader = await Users.get_or_none(id=item.leader)
     if not leader:
@@ -81,7 +81,7 @@ async def del_project(pro_id: int):
 
 # ############################################# 环境相关 #############################################
 # 创建测试环境
-@router.post("/envs", tags=["项目"], summary="创建测试环境")
+@router.post("/envs", tags=["项目"], summary="创建测试环境",status_code=201)
 async def add_env(item: AddEnvForm):
     project = await Project.get_or_none(id=item.project)
     if not project:
@@ -92,13 +92,19 @@ async def add_env(item: AddEnvForm):
 
 
 # 获取测试环境列表
-@router.get("/envs", tags=["项目"], summary="获取测试环境", response_model=list[EnvInfo])
-async def get_envs(pro_id: int):
-    envs = await Env.all().filter(project=pro_id).prefetch_related('project')
+@router.get("/envs", tags=["项目"], summary="获取测试环境")
+async def get_envs(project: int):
+    envs = await Env.all().filter(project=project).prefetch_related('project')
     return [{
         "id": env.id,
         "name": env.name,
-        "project": env.project.name
+        "project": env.project.id,
+        "host": env.host,
+        "headers": env.headers,
+        "db": env.db,
+        "global_variable": env.global_variable,
+        "debug_global_variable": env.debug_global_variable,
+        "global_func": env.global_func
     }
         for env in envs]
 
