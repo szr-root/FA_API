@@ -2,8 +2,11 @@
 # @Author : John
 # @Time : 2024/12/13
 # @File : api.py
+import json
+import time
 
 from fastapi import APIRouter, HTTPException
+from requests.structures import CaseInsensitiveDict
 from tortoise.query_utils import Prefetch
 
 from .models import TestTask, TestReport, TestRecord
@@ -106,9 +109,42 @@ async def del_task(task_id: int):
 @router.post('/tasks/run', summary='运行测试任务')
 async def run_task(item: RunTaskForm):
     task = await TestTask.get_or_none(id=item.task).prefetch_related('suite')
+    record = await TestRecord.create(task_id=item.task, env_id=item.env, tester=item.tester)
+    all_ = 0
+    success = 0
+    fail = 0
+    error = 0
+    start_time = time.time()
     result = []
     for suite in task.suite:
         res = await run_scenes(SuiteRunForm(**{"env": item.env, "suite": suite.id}))
         result.append(res)
+        await TestReport.create(record=record, info=res[0][0])
+        all_ += res[0][0]['all']
+        success += res[0][0]['success']
+        fail += res[0][0]['fail']
+        error += res[0][0]['error']
 
+    pass_rate = str(round((success / all_) * 100, 2))
+    if success == all_:
+        status = 'success'
+    elif error != 0:
+        status = 'error'
+    else:
+        status = 'fail'
+    run_time = str(round(time.time() - start_time, 2))
+    record.all = all_
+    record.success = success
+    record.fail = fail
+    record.error = error
+    record.pass_rate = pass_rate
+    record.run_time = run_time
+    record.status = status
+    await record.save()
     return result
+
+# 获取所有运行记录
+
+# 获取运行记录详情
+
+# 获取测试报告

@@ -19,3 +19,4 @@ class UpdateForm(AddTaskForm):
 class RunTaskForm(BaseModel):
     env: int = Field(description='关联环境')
     task: int = Field(description='关联任务')
+    tester:str = Field(description="执行人")

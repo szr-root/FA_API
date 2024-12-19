@@ -26,15 +26,15 @@ class TestRecord(models.Model):
                                   on_delete=tortoise.fields.CASCADE)
     env = fields.ForeignKeyField('models.Env', related_name='records', description='关联环境',
                                  on_delete=tortoise.fields.RESTRICT)
-    start_time = fields.DatetimeField(auto_now_add=True, description='开始时间')
+    create_time = fields.DatetimeField(auto_now_add=True, description='开始时间')
     all = fields.IntField(description='用例总数', default=0, blank=True)
     success = fields.IntField(description='成功用例数', default=0, blank=True)
     fail = fields.IntField(description='失败用例数', default=0, blank=True)
     error = fields.IntField(description='错误用例数', default=0, blank=True)
     pass_rate = fields.CharField(max_length=10, description='通过率', default='0')
     tester = fields.CharField(max_length=30, description='测试人员')
-    end_time = fields.DatetimeField(description='结束时间')
-    status = fields.CharField(max_length=10, description='运行状态')
+    run_time = fields.CharField(max_length=10, description='运行时间', default='0')
+    status = fields.CharField(max_length=10, description='运行状态',default='running')
 
     def __str__(self):
         return str(self.pk)
