@@ -9,11 +9,13 @@ from pydantic import BaseModel, Field
 class AddTaskForm(BaseModel):
     name: str = Field(description='任务名称')
     project: int = Field(description='关联项目')
-    suite: list[int] = Field(description='关联套件')
+    scene: list[int] = Field(description='关联套件')
 
 
-class UpdateForm(AddTaskForm):
-    pass
+class UpdateTaskForm(BaseModel):
+    id: int = Field(description='任务id')
+    name: str = Field(description='任务名称')
+    scene: list[int] = Field(description='关联套件')
 
 
 class RunTaskForm(BaseModel):

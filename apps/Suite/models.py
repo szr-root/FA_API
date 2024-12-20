@@ -29,5 +29,5 @@ class SuiteToCase(models.Model):
         return self.suite_case.title
 
     class Meta:
-        table = 'Suite_To_Case'
+        table = 'SuiteToCase'
         table_description = '套件中用例执行顺序'

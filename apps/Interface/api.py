@@ -5,7 +5,7 @@
 
 from fastapi import APIRouter, HTTPException
 from .models import InterFace, InterFaceCase
-from .schemas import AddInterFaceForm, UpdateInterFaceForm, AddInterFaceCaseForm, UpdateInterFaceCaseForm
+from .schemas import AddInterFaceForm, UpdateInterFaceForm, AddInterFaceCaseForm, UpdateInterFaceCaseForm, RunCaseForm
 from apps.projects.models import Project, Env
 from BackEngine.core.runner import TestRunner
 
@@ -14,7 +14,7 @@ router = APIRouter(prefix='/api/TestInterFace', tags=['接口/用例管理'])
 
 # ############################################# 接口相关 #############################################
 # 创建接口
-@router.post("/interfaces", summary="创建接口",status_code=201)
+@router.post("/interfaces", summary="创建接口", status_code=201)
 async def create_interFace(item: AddInterFaceForm):
     """
     创建接口
@@ -81,7 +81,7 @@ async def del_interface(_id: int):
 
 # ############################################# 用例相关 #############################################
 # 添加测试用例
-@router.post("/cases", summary="添加测试用例",status_code=201)
+@router.post("/cases", summary="添加测试用例", status_code=201)
 async def add_case(item: AddInterFaceCaseForm):
     interface = await InterFace.get_or_none(id=item.interface)
     if not interface:
@@ -136,7 +136,7 @@ async def del_case(case_id: int):
 
 # 运行用例
 @router.post("/cases/run", summary="运行用例")
-async def run_case(env_id: int, cases: dict):
+async def run_case(item: RunCaseForm):
     """
     {
         "title": "登录成功用例",
@@ -159,9 +159,11 @@ async def run_case(env_id: int, cases: dict):
              "teardown_script": ""
     }
     """
-    if not all([env_id, cases]):
+    env = item.env
+    cases = item.cases
+    if not all([env, cases]):
         return "参数错误，env和cases不能为空"
-    env = await Env.get_or_none(id=env_id)
+    env = await Env.get_or_none(id=env)
     if not env:
         return "环境不存在"
     env_config = {

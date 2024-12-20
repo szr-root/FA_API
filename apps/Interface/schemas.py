@@ -41,3 +41,6 @@ class UpdateInterFaceCaseForm(AddInterFaceCaseForm):
     teardown_script: str = Field(description="后置脚本", default="")
 
 
+class RunCaseForm(BaseModel):
+    env: int = Field(description="关联环境")
+    cases: dict = Field(description="关联用例")

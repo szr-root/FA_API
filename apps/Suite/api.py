@@ -7,7 +7,7 @@ from fastapi import APIRouter, HTTPException
 from tortoise.query_utils import Prefetch
 
 from BackEngine.core.runner import TestRunner
-from .schemas import AddSuiteForm, AddSuiteToCaseForm, SuiteSchema, UpdateOrder, SuiteRunForm
+from .schemas import AddSuiteForm, AddSuiteToCaseForm, SuiteSchema, UpdateOrder, SuiteRunForm, UpdateSuiteForm
 from .models import Suite, SuiteToCase
 from apps.projects.models import Project, Env
 from ..Interface.models import InterFaceCase
@@ -16,7 +16,7 @@ router = APIRouter(prefix='/api/testFlow', tags=['测试套件（业务流）'])
 
 
 # 创建测试套件
-@router.post('/scenes', summary='创建测试套件')
+@router.post('/scenes', summary='创建测试套件', status_code=201)
 async def create_scenes(item: AddSuiteForm):
     project = await Project.get_or_none(id=item.project)
     if not project:
@@ -50,22 +50,33 @@ async def del_scenes(suite_id: int):
     await suite.delete()
 
 
-# 修改测试业务流中用例执行顺序
-@router.patch('/scenes/{suite_id}', summary='修改测试业务流中用例执行顺序')
-async def update_scenes(suite_id: int, item: list[UpdateOrder]):
+@router.patch('/scenes/{suite_id}', summary='修改测试业务流')
+async def update_scenes(suite_id: int, item: UpdateSuiteForm):
     suite = await Suite.get_or_none(id=suite_id)
     if not suite:
         raise HTTPException(status_code=422, detail="业务流不存在")
-    for _i in item:
-        suite_to_case = await SuiteToCase.get_or_none(id=_i.id)
-        suite_to_case.sort = _i.sort
-        await suite_to_case.save()
-    # todo 返回结果未修改
+    suite.name = item.name
+    await suite.save()
     return suite
 
 
+# 修改测试业务流中用例执行顺序
+@router.patch('/icases/order/', summary='修改测试业务流中用例执行顺序')
+async def update_scenes(item: list[UpdateOrder]):
+    # suite = await Suite.get_or_none(id=suite_id)
+    # if not suite:
+    #     raise HTTPException(status_code=422, detail="业务流不存在")
+    suitecases = []
+    for _i in item:
+        suite_to_case = await SuiteToCase.get_or_none(id=_i.id)
+        suite_to_case.sort = _i.sort
+        suitecases.append({'id': suite_to_case.id, 'sort': suite_to_case.sort})
+        await suite_to_case.save()
+    return suitecases
+
+
 # 获取业务流中所有用例
-@router.get('/icases/{scene}', summary='获取业务流中所有用例')
+@router.get('/icases', summary='获取业务流中所有用例')
 async def get_icases(scene: int):
     suite = await Suite.get_or_none(id=scene)
     if not suite:
@@ -94,7 +105,7 @@ async def get_icases(scene: int):
 @router.post('/scenes/run', summary='运行测试业务流')
 async def run_scenes(item: SuiteRunForm):
     env_id = item.env
-    suite_id = item.suite
+    suite_id = item.scene
     env = await Env.get_or_none(id=env_id)
     if not env:
         raise HTTPException(status_code=422, detail="环境不存在")
@@ -137,16 +148,16 @@ async def run_scenes(item: SuiteRunForm):
     ]
     # return case_datas
     runner = TestRunner(case_datas, env_config).run()
-    return runner
+    return runner[0]
 
 
 # 向测试业务流中添加测试用例
-@router.post('/icases', summary='向测试业务流中添加测试用例')
+@router.post('/icases', summary='向测试业务流中添加测试用例',status_code=201)
 async def add_icase(item: AddSuiteToCaseForm):
-    suite = await Suite.get_or_none(id=item.suite)
+    suite = await Suite.get_or_none(id=item.scene)
     if not suite:
         raise HTTPException(status_code=422, detail="业务流不存在")
-    suite_case = await InterFaceCase.get_or_none(id=item.suite_case)
+    suite_case = await InterFaceCase.get_or_none(id=item.icase)
     if not suite_case:
         raise HTTPException(status_code=422, detail="用例不存在")
     return await SuiteToCase.create(suite=suite, suite_case=suite_case, sort=item.sort)
@@ -154,8 +165,8 @@ async def add_icase(item: AddSuiteToCaseForm):
 
 # 删除业务流中的用例
 @router.delete('/icases/{case_id}', summary='删除业务流中的用例', status_code=204)
-async def del_icase(suite_case_id: int):
-    suite_case = await SuiteToCase.get_or_none(id=suite_case_id)
+async def del_icase(case_id: int):
+    suite_case = await SuiteToCase.get_or_none(id=case_id)
     if not suite_case:
         raise HTTPException(status_code=422, detail="用例不存在")
     await suite_case.delete()

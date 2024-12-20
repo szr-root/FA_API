@@ -10,7 +10,7 @@ from requests.structures import CaseInsensitiveDict
 from tortoise.query_utils import Prefetch
 
 from .models import TestTask, TestReport, TestRecord
-from .schemas import AddTaskForm, UpdateForm, RunTaskForm
+from .schemas import AddTaskForm, RunTaskForm, UpdateTaskForm
 from ..Interface.models import InterFaceCase
 from ..Suite.api import run_scenes
 from ..Suite.models import Suite, SuiteToCase
@@ -21,15 +21,15 @@ router = APIRouter(prefix="/api/testTask", tags=["测试任务"])
 
 
 # 创建测试任务
-@router.post('/tasks', summary='创建测试任务')
+@router.post('/tasks', summary='创建测试任务', status_code=201)
 async def create_task(item: AddTaskForm):
     project = await Project.get_or_none(id=item.project)
     if not project:
         raise HTTPException(status_code=422, detail="项目不存在")
     item.project = project
     # 获取所有套件
-    suites = await Suite.filter(id__in=item.suite)
-    if len(suites) != len(item.suite):
+    suites = await Suite.filter(id__in=item.scene)
+    if len(suites) != len(item.scene):
         raise HTTPException(status_code=422, detail="部分套件不存在")
         # 创建测试任务，排除多对多字段
     task_data = item.dict(exclude={'suite'})
@@ -60,9 +60,38 @@ async def get_task(task_id: int):
     return data
 
 
+# 向测试任务中添加测试套件
+@router.patch('/tasks/{task_id}', summary='向测试任务中添加测试套件')
+async def add_icase(item: UpdateTaskForm):
+    task = await TestTask.get_or_none(id=item.id).prefetch_related('suite')
+    # 更新任务的基本信息
+    task.name = item.name
+
+    # 获取当前关联的套件ID集合
+    current_suite_ids = {suite.id for suite in task.suite}
+    new_suite_ids = set(item.scene)
+
+    # 计算需要删除和添加的套件ID
+    to_remove = current_suite_ids - new_suite_ids
+    to_add = new_suite_ids - current_suite_ids
+
+    # # 删除不再关联的套件
+    for suite_id in to_remove:
+        await task.suite.remove(await Suite.get(id=suite_id))
+
+    # 添加新关联的套件
+    for suite_id in to_add:
+        await task.suite.add(await Suite.get(id=suite_id))
+
+    # 保存任务更改
+    await task.save()
+    return task
+
+
+
 # 修改测试任务
-@router.patch('/tasks/{task_id}', summary='修改测试任务')
-async def update_task(task_id: int, item: UpdateForm):
+@router.patch('/icases/{task_id}', summary='修改测试任务')
+async def update_task(task_id: int, item: UpdateTaskForm):
     task = await TestTask.get_or_none(id=task_id).prefetch_related('suite')
     if not task:
         raise HTTPException(status_code=422, detail="任务不存在")
@@ -96,7 +125,7 @@ async def update_task(task_id: int, item: UpdateForm):
 
 
 # 删除测试任务
-@router.delete('/tasks/{task_id}', summary='删除测试任务')
+@router.delete('/tasks/{task_id}', summary='删除测试任务', status_code=204)
 async def del_task(task_id: int):
     task = await TestTask.get_or_none(id=task_id)
     if not task:
@@ -152,9 +181,9 @@ async def run_task(item: RunTaskForm):
 
 
 # 获取所有运行记录
-@router.get('/record/{task_id}', summary='获取所有运行记录')
-async def get_record(task_id: int):
-    records = await TestRecord.filter(task_id=task_id).select_related('task').select_related('env')
+@router.get('/records/', summary='获取所有运行记录')
+async def get_record(task: int):
+    records = await TestRecord.filter(task_id=task).select_related('task').select_related('env')
     return [{"id": record.pk, "task": record.task.name, "env": record.env.name, "tester": record.tester,
              "all": record.all, "success": record.success, "fail": record.fail, "error": record.error,
              "pass_rate": record.pass_rate, "run_time": record.run_time, "status": record.status,
@@ -162,8 +191,30 @@ async def get_record(task_id: int):
              } for record in records]
 
 
+# 获取单个测试记录详情
+@router.get('/records/{record_id}', summary='获取单个测试记录详情')
+async def get_recordInfo(record_id: int):
+    record = await TestRecord.get_or_none(id=record_id).prefetch_related('task').prefetch_related('env')
+    if not record:
+        raise HTTPException(status_code=422, detail="记录不存在")
+    return {
+        "id": record.pk,
+        "task": record.task.name,
+        "env": record.env.name,
+        "tester": record.tester,
+        "all": record.all,
+        "success": record.success,
+        "fail": record.fail,
+        "error": record.error,
+        "pass_rate": record.pass_rate,
+        "run_time": record.run_time,
+        "status": record.status,
+        "create_time": record.create_time.strftime()
+    }
+
 # 获取测试报告
 @router.get('/report/{record_id}', summary='获取测试报告')
 async def get_report(record_id: int):
-    report = await TestReport.filter(record_id=record_id)
-    return report[0]
+    report = await TestReport.get_or_none(record_id=record_id)
+    return report
+

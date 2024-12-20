@@ -17,9 +17,15 @@ class UpdateOrder(BaseModel):
 
 
 class AddSuiteToCaseForm(BaseModel):
-    suite: int = Field(description='关联套件')
-    suite_case: int = Field(description='关联用例')
+    scene: int = Field(description='关联套件')
+    icase: int = Field(description='关联用例')
     sort: int = Field(description='执行顺序', default=1)
+
+
+class UpdateSuiteForm(BaseModel):
+    id: int = Field(description='套件id')
+    project: int = Field(description='关联项目')
+    name: str = Field(description='套件名称')
 
 
 class SuiteSchema(BaseModel):
@@ -30,4 +36,4 @@ class SuiteSchema(BaseModel):
 
 class SuiteRunForm(BaseModel):
     env: int = Field(description='环境id')
-    suite: int = Field(description='套件id')
+    scene: int = Field(description='套件id')

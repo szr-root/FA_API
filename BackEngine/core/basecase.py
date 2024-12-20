@@ -131,7 +131,7 @@ class BaseCase(CaseLogHandel):
 
         return eval(data)
 
-    def convert_to_dict(self,obj):
+    def convert_to_dict(self, obj):
         """Recursively converts a CaseInsensitiveDict to a regular dict."""
         if isinstance(obj, CaseInsensitiveDict):
             return dict(obj)
@@ -156,19 +156,19 @@ class BaseCase(CaseLogHandel):
         start_time = time.time()
         # 发送请求
         response = requests.request(**request_data)
-        self.request_header = self.convert_to_dict(response.request.headers)
+        self.requests_header = self.convert_to_dict(response.request.headers)
         self.response_header = self.convert_to_dict(response.headers)
         self.response_body = response.text
-        self.request_body = response.request.body.decode('utf-8')
+        self.requests_body = response.request.body.decode('utf-8')
         self.run_time = str(round(time.time() - start_time, 2)) + 's'
         self.status_code = response.status_code
-        self.info_log('请求地址', response.url)
-        self.info_log('请求方式', response.request.method)
-        self.info_log('请求头', response.request.headers)
-        self.info_log('请求体', response.request.body)
-        self.info_log('响应头', response.headers)
-        self.info_log('响应体', response.text)
-        self.info_log(response.text)
+        self.debug_log('请求地址', response.url)
+        self.debug_log('请求方式', response.request.method)
+        self.debug_log('请求头', response.request.headers)
+        self.debug_log('请求体', response.request.body)
+        self.debug_log('响应头', response.headers)
+        self.debug_log('响应体', response.text)
+        self.debug_log(response.text)
         # 返回响应对象
 
         return response
@@ -250,7 +250,7 @@ class BaseCase(CaseLogHandel):
         return value
 
     # def assertion(self, method, expected, actual,*args, **kwargs):
-    def assertion(self, assert_list: list):
+    def assertion(self, method, expected, actual):
         """
         :param method: 断言的方法
         :param expected: 预期结果
@@ -258,7 +258,7 @@ class BaseCase(CaseLogHandel):
         :return:
         """
         # self.info_log(assert_list)
-        method_map = {
+        methods_map = {
             '相等': lambda x, y: x == y,
             '不相等': lambda x, y: x != y,
             '大于': lambda x, y: x > y,
@@ -268,22 +268,21 @@ class BaseCase(CaseLogHandel):
             '不包含': lambda x, y: x not in y,
             '包含': lambda x, y: x in y,
         }
-        for item in assert_list:
-            assert_func = method_map.get(item['method'])
-            if assert_func is None:
-                self.info_log("不支持的断言方法：", item['method'])
-                return
+        self.info_log('----------断言----------')
+        self.debug_log('比较方式:{}'.format(method))
+        self.debug_log('预期结果:{}'.format(expected))
+        self.debug_log('实际结果:{}'.format(actual))
+        assert_method = methods_map.get(method)
+        if assert_method:
+            if assert_method(expected, actual):
+                self.info_log("断言通过!")
+                self.status = "成功"
             else:
-                self.debug_log("断言比较方法为：", item['method'])
-                self.debug_log("预期结果:", item['expected'])
-                self.debug_log("实际结果:", item['actual'])
-            try:
-                assert assert_func(item['expected'], item['actual'])
-            except AssertionError:
-                self.warning_log("断言失败，预期结果为：", item['expected'], "实际结果为：", item['actual'])
-                raise AssertionError("断言失败，预期结果为：{},实际结果为：{}".format(item['expected'], item['actual']))
-            else:
-                self.info_log("断言成功，预期结果为：", item['expected'], "实际结果为：", item['actual'])
+                self.info_log(f"断言 {expected} {method} {actual}失败!")
+                self.status = "失败"
+                raise AssertionError('断言失败')
+        else:
+            raise TypeError('断言比较方法{},不支持!'.format(method))
 
 
 if __name__ == '__main__':
