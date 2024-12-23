@@ -2,19 +2,24 @@
 # @Author : John
 # @Time : 2024/12/06
 # @File : api.py
+import json
+import os
 from typing import List
+from fastapi.responses import FileResponse
+from fastapi import APIRouter, HTTPException, File, UploadFile
 
-from fastapi import APIRouter, HTTPException
+from common import settings
 from .models import Project, Env, TestFile
 from .schemas import AddProjectForm, ProjectInfo, EditProjectForm, AddEnvForm, EnvInfo, UpdateEnvForm
 from ..users.models import Users
 
 router = APIRouter(prefix='/api/testPro', tags=['项目'])
+file_router = APIRouter(prefix='', tags=['文件'])
 
 
 # ############################################# 项目相关 #############################################
 # 创建项目
-@router.post("/projects", tags=["项目"], summary="创建项目",status_code=201)
+@router.post("/projects", tags=["项目"], summary="创建项目", status_code=201)
 async def add_project(item: AddProjectForm):
     leader = await Users.get_or_none(id=item.leader)
     if not leader:
@@ -81,7 +86,7 @@ async def del_project(pro_id: int):
 
 # ############################################# 环境相关 #############################################
 # 创建测试环境
-@router.post("/envs", tags=["项目"], summary="创建测试环境",status_code=201)
+@router.post("/envs", tags=["项目"], summary="创建测试环境", status_code=201)
 async def add_env(item: AddEnvForm):
     project = await Project.get_or_none(id=item.project)
     if not project:
@@ -148,8 +153,69 @@ async def del_env(env_id: int):
 
 
 # ############################################# 文件相关 #############################################
-# 获取测试文件 todo
-@router.get("/testFile", tags=["项目"], summary="获取测试文件")
-async def get_testFile():
-    testFile = await TestFile.all()
-    return testFile
+
+# 上传文件
+@router.post("/files", tags=["项目"], summary="创建测试文件", status_code=201)
+async def add_testfile(file: UploadFile):
+    print(file)
+    size = file.size
+    name = file.filename
+    if size > 1024 * 1024 * 5:
+        raise HTTPException(detail="文件大小不能超过5M", status_code=400)
+    file_path = settings.MEDIA_ROOT + '/' + name
+    if os.path.isfile(file_path):
+        raise HTTPException(detail="文件已存在", status_code=400)
+
+    file_type = file.content_type
+    # 修改info字段值
+    info = json.dumps([name, f'files/{name}', file_type])
+    os.makedirs(os.path.dirname(file_path), exist_ok=True)
+    with open(file_path, 'wb') as f:
+        f.write(await file.read())
+    testfile = await TestFile.create(file=name, info=info)
+    return testfile
+
+
+# 获取测试文件
+@router.get("/files", tags=["项目"], summary="获取测试文件")
+async def get_testfiles():
+    test_files = await TestFile.all()
+    return [testfile for testfile in test_files]
+
+
+# 删除测试文件
+@router.delete("/files/{file_id}", tags=["项目"], summary="删除测试文件", status_code=204)
+async def del_testfile(file_id: int):
+    testfile = await TestFile.get_or_none(id=file_id)
+    if not testfile:
+        raise HTTPException(status_code=422, detail="文件不存在")
+    file_path = settings.MEDIA_ROOT + '/' + testfile.file
+    os.remove(file_path)
+    await testfile.delete()
+
+
+# 展示文件
+@file_router.get("/files/{file_name}", tags=["项目"], summary="展示测试文件")
+async def show_testfile(file_name: str):
+    testfile = await TestFile.get_or_none(file=file_name)
+    if not testfile:
+        raise HTTPException(status_code=422, detail="文件不存在")
+    file_path = settings.MEDIA_ROOT + '/' + testfile.file
+    # 检查文件是否存在目录
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="files目录中找不到文件")
+    # 创建 FileResponse 对象
+    response = FileResponse(file_path, filename=testfile.file)
+
+    # 设置 Content-Type
+    content_type = 'image/jpeg'
+    if file_path.endswith('.png'):
+        content_type = 'image/png'
+    elif file_path.endswith('.gif'):
+        content_type = 'image/gif'
+    elif file_path.endswith('.mp4'):
+        content_type = 'video/mp4'
+    response.headers['Content-Type'] = content_type
+    # 设置 Content-Disposition
+    response.headers['Content-Disposition'] = f'inline; filename="{testfile.file}"'
+    return response

@@ -38,9 +38,11 @@ class BaseCase(CaseLogHandel):
         # 获取用例的前置脚本
         setup_script = data.get('setup_script')
         # 使用执行器函数执行python的脚步代码
+        self.info_log("*****执行前置脚本*****")
         exec(setup_script)
         # 接受传进来的响应结果
         response = yield
+        self.info_log("*****执行后置脚本*****")
         teardown_script = data.get('teardown_script')
         exec(teardown_script)
         yield
@@ -110,7 +112,7 @@ class BaseCase(CaseLogHandel):
             self.request_body = request.get('json')
         # 替换用例中的变量
         request_data = self.replace_data(request_data)
-
+        self.info_log("===发送【 ", request_data["method"].upper(), " 】请求，请求地址是:", request_data["url"])
         return request_data
 
     def replace_data(self, data):
@@ -126,6 +128,7 @@ class BaseCase(CaseLogHandel):
             key = match.group(1)
             # 获取全局变量中的值
             value = ENV.get('ENV').get(key)
+            self.info_log("开始替换变量, 将 ", key, " 替换成 ", value)
             # 将匹配到的内容中的变量替换为全局变量中的值
             data = data.replace(match.group(), str(value))
 
@@ -152,7 +155,7 @@ class BaseCase(CaseLogHandel):
         """
         # 处理用例的请求数据(替换请求参数中的变量，将数据转换为requests发送请求所需要的格式)
         request_data = self.__handler_requests_data(data)
-        self.info_log(request_data)
+        # self.info_log(request_data)
         start_time = time.time()
         # 发送请求
         response = requests.request(**request_data)
@@ -162,13 +165,13 @@ class BaseCase(CaseLogHandel):
         self.requests_body = response.request.body.decode('utf-8')
         self.run_time = str(round(time.time() - start_time, 2)) + 's'
         self.status_code = response.status_code
-        self.debug_log('请求地址', response.url)
-        self.debug_log('请求方式', response.request.method)
-        self.debug_log('请求头', response.request.headers)
-        self.debug_log('请求体', response.request.body)
-        self.debug_log('响应头', response.headers)
-        self.debug_log('响应体', response.text)
-        self.debug_log(response.text)
+        # self.info_log('请求地址', response.url)
+        # self.info_log('请求方式', response.request.method)
+        # self.info_log('请求头', response.request.headers)
+        # self.info_log('请求体', response.request.body)
+        # self.info_log('响应头', response.headers)
+        # self.info_log('响应体', response.text)
+        # self.info_log(response.text)
         # 返回响应对象
 
         return response
@@ -181,7 +184,7 @@ class BaseCase(CaseLogHandel):
         """
         self.title = data.get('title')
         self.data = data
-        self.info_log("===开始执行用例:", self.title, '===')
+        self.info_log('===开始执行用例：', self.title, '===')
         # 执行前置脚本
         self.__setup_script(data)
         # 发送请求
@@ -276,6 +279,7 @@ class BaseCase(CaseLogHandel):
         if assert_method:
             if assert_method(expected, actual):
                 self.info_log("断言通过!")
+                # self.info_log(self.)
                 self.status = "成功"
             else:
                 self.info_log(f"断言 {expected} {method} {actual}失败!")

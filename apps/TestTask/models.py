@@ -34,7 +34,7 @@ class TestRecord(models.Model):
     pass_rate = fields.CharField(max_length=10, description='通过率', default='0')
     tester = fields.CharField(max_length=30, description='测试人员')
     run_time = fields.CharField(max_length=10, description='运行时间', default='0')
-    status = fields.CharField(max_length=10, description='运行状态',default='running')
+    status = fields.CharField(max_length=10, description='运行状态', default='执行中')
 
     def __str__(self):
         return str(self.pk)

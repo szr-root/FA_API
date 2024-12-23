@@ -97,8 +97,7 @@ class TestResult:
             "fail": self.fail,
             "error": self.error,
             "cases": self.cases,
-            "status": '成功' if self.success == self.all else ('失败' if self.error > 0 else '错误'),
-            # "run_time": self.run_time
+            "status": '成功' if self.success == self.all else ('失败' if self.fail > 0 else '错误'),
         }
 
 

@@ -2,6 +2,15 @@
 # @Author : John
 # @Time : 2024/12/06
 # @File : settings.py
+import os
+from pathlib import Path
+
+# ############## 文件存储配置信息 ###############
+BASE_DIR = Path(__file__).resolve().parent.parent
+MEDIA_URL = 'files/'
+MEDIA_ROOT = os.path.join(BASE_DIR, 'files')
+
+
 # ############## 数据库的配置信息 ###############
 DATABASE = {
     'host': 'localhost',

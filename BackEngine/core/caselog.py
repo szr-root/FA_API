@@ -15,27 +15,27 @@ class CaseLogHandel:
         print((level, massage))
 
     def print_log(self, *args):
-        msg = ' '.join([str(i) for i in args])
+        msg = '【PRINT】｜ '+''.join([str(i) for i in args])
         self.save_log(msg, 'PRINT')
 
     def debug_log(self, *args):
-        msg = ' '.join([str(i) for i in args])
+        msg = '【DEBUG】｜'+''.join([str(i) for i in args])
         self.save_log(msg, 'DEBUG')
 
     def info_log(self, *args):
-        msg = ' '.join([str(i) for i in args])
+        msg = '【INFO】｜ ' + ''.join([str(i) for i in args])
         self.save_log(msg, 'INFO')
 
     def error_log(self, *args):
-        msg = ' '.join([str(i) for i in args])
+        msg = '【ERROR】｜ '+''.join([str(i) for i in args])
         self.save_log(msg, 'ERROR')
 
     def warning_log(self, *args):
-        msg = ' '.join([str(i) for i in args])
+        msg = '【WARN】｜ '+''.join([str(i) for i in args])
         self.save_log(msg, 'WARN')
 
     def critical_log(self, *args):
-        msg = ' '.join([str(i) for i in args])
+        msg = '【CRITICAL】｜ '+''.join([str(i) for i in args])
         self.save_log(msg, 'CRITICAL')
 
 

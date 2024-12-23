@@ -4,24 +4,23 @@
 # @File : api.py
 import json
 import time
+from typing import Optional
 
 from fastapi import APIRouter, HTTPException
-from requests.structures import CaseInsensitiveDict
-from tortoise.query_utils import Prefetch
+from tortoise.transactions import in_transaction
 
 from .models import TestTask, TestReport, TestRecord
 from .schemas import AddTaskForm, RunTaskForm, UpdateTaskForm
-from ..Interface.models import InterFaceCase
 from ..Suite.api import run_scenes
-from ..Suite.models import Suite, SuiteToCase
+from ..Suite.models import Suite
 from ..Suite.schemas import SuiteRunForm
-from ..projects.models import Project, Env
+from ..projects.models import Project
 
 router = APIRouter(prefix="/api/testTask", tags=["测试任务"])
 
 
 # 创建测试任务
-@router.post('/tasks', summary='创建测试任务', status_code=201)
+@router.post('/tasks/', summary='创建测试任务', status_code=201)
 async def create_task(item: AddTaskForm):
     project = await Project.get_or_none(id=item.project)
     if not project:
@@ -41,14 +40,14 @@ async def create_task(item: AddTaskForm):
 
 
 # 查询所有测试任务
-@router.get('/tasks', summary='查询所有测试任务')
+@router.get('/tasks/', summary='查询所有测试任务')
 async def get_tasks(project: int):
     tasks = await TestTask.filter(project=project).prefetch_related('suite')
     return [{"id": task.pk, "name": task.name, "scene": [scene.id for scene in task.suite]} for task in tasks]
 
 
 # 获取单个任务详情
-@router.get('/tasks/{task_id}', summary='获取单个任务详情')
+@router.get('/tasks/{task_id}/', summary='获取单个任务详情')
 async def get_task(task_id: int):
     task = await TestTask.get_or_none(id=task_id).prefetch_related('suite')
     if not task:
@@ -61,7 +60,7 @@ async def get_task(task_id: int):
 
 
 # 向测试任务中添加测试套件
-@router.patch('/tasks/{task_id}', summary='向测试任务中添加测试套件')
+@router.patch('/tasks/{task_id}/', summary='向测试任务中添加测试套件')
 async def add_icase(item: UpdateTaskForm):
     task = await TestTask.get_or_none(id=item.id).prefetch_related('suite')
     # 更新任务的基本信息
@@ -88,9 +87,8 @@ async def add_icase(item: UpdateTaskForm):
     return task
 
 
-
 # 修改测试任务
-@router.patch('/icases/{task_id}', summary='修改测试任务')
+@router.patch('/icases/{task_id}/', summary='修改测试任务')
 async def update_task(task_id: int, item: UpdateTaskForm):
     task = await TestTask.get_or_none(id=task_id).prefetch_related('suite')
     if not task:
@@ -125,7 +123,7 @@ async def update_task(task_id: int, item: UpdateTaskForm):
 
 
 # 删除测试任务
-@router.delete('/tasks/{task_id}', summary='删除测试任务', status_code=204)
+@router.delete('/tasks/{task_id}/', summary='删除测试任务', status_code=204)
 async def del_task(task_id: int):
     task = await TestTask.get_or_none(id=task_id)
     if not task:
@@ -135,55 +133,65 @@ async def del_task(task_id: int):
 
 
 # 运行测试任务
-@router.post('/tasks/run', summary='运行测试任务')
+@router.post('/tasks/run/', summary='运行测试任务')
 async def run_task(item: RunTaskForm):
-    task = await TestTask.get_or_none(id=item.task).prefetch_related('suite')
-    record = await TestRecord.create(task_id=item.task, env_id=item.env, tester=item.tester)
-    all_ = 0
-    success = 0
-    fail = 0
-    error = 0
-    start_time = time.time()
-    result = []
-    for suite in task.suite:
-        res = await run_scenes(SuiteRunForm(**{"env": item.env, "suite": suite.id}))
-        result.append(res)
-        all_ += res[0]['all']
-        success += res[0]['success']
-        fail += res[0]['fail']
-        error += res[0]['error']
+    async with in_transaction():
+        try:
+            task = await TestTask.get_or_none(id=item.task).prefetch_related('suite')
+            record = await TestRecord.create(task_id=item.task, env_id=item.env, tester=item.tester)
+            all_ = 0
+            success = 0
+            fail = 0
+            error = 0
+            start_time = time.time()
+            result = []
+            for suite in task.suite:
+                res = await run_scenes(SuiteRunForm(env=item.env, scene=suite.id))
+                result.append(res)
+                all_ += res['all']
+                success += res['success']
+                fail += res['fail']
+                error += res['error']
 
-    pass_rate = str(round((success / all_) * 100, 2))
-    if success == all_:
-        status = 'success'
-    elif error != 0:
-        status = 'error'
+            pass_rate = str(round((success / all_) * 100, 2))
+            if success == all_:
+                status = '成功'
+            elif error != 0:
+                status = '错误'
+            else:
+                status = '失败'
+            run_time = str(round(time.time() - start_time, 2)) + 's'
+            record.all = all_
+            record.success = success
+            record.fail = fail
+            record.error = error
+            record.pass_rate = pass_rate
+            record.run_time = run_time
+            record.status = status
+            await record.save()
+            info = {
+                "all": all_,
+                "fail": fail,
+                "error": error,
+                "success": success,
+                "results": result,
+            }
+            await TestReport.create(record=record, info=info)
+        except Exception as e:
+            result = ['error']
+            raise HTTPException(status_code=422, detail="error")
+        return result
+
+
+# 获取运行记录，传task就是任务的所有记录，传project，就是项目数据看板
+@router.get('/records/', summary='获取单个任务所有运行记录')
+async def get_records(task: Optional[int] = None, project: Optional[int] = None):
+    if task:
+        records = await TestRecord.filter(task_id=task).select_related('task', 'env').order_by('-create_time')
+    elif project:
+        records = await TestRecord.filter(task__project=project).select_related('task', 'env').order_by('-create_time')
     else:
-        status = 'fail'
-    run_time = str(round(time.time() - start_time, 2)) + 's'
-    record.all = all_
-    record.success = success
-    record.fail = fail
-    record.error = error
-    record.pass_rate = pass_rate
-    record.run_time = run_time
-    record.status = status
-    await record.save()
-    info = {
-        "all": all_,
-        "fail": fail,
-        "error": error,
-        "success": success,
-        "results": result,
-    }
-    await TestReport.create(record=record, info=info)
-    return result
-
-
-# 获取所有运行记录
-@router.get('/records/', summary='获取所有运行记录')
-async def get_record(task: int):
-    records = await TestRecord.filter(task_id=task).select_related('task').select_related('env')
+        raise HTTPException(status_code=422, detail="参数错误,task和project不能都为空")
     return [{"id": record.pk, "task": record.task.name, "env": record.env.name, "tester": record.tester,
              "all": record.all, "success": record.success, "fail": record.fail, "error": record.error,
              "pass_rate": record.pass_rate, "run_time": record.run_time, "status": record.status,
@@ -192,9 +200,9 @@ async def get_record(task: int):
 
 
 # 获取单个测试记录详情
-@router.get('/records/{record_id}', summary='获取单个测试记录详情')
+@router.get('/records/{record_id}/', summary='获取单个测试记录详情')
 async def get_recordInfo(record_id: int):
-    record = await TestRecord.get_or_none(id=record_id).prefetch_related('task').prefetch_related('env')
+    record = await TestRecord.get_or_none(id=record_id).prefetch_related('task', 'env')
     if not record:
         raise HTTPException(status_code=422, detail="记录不存在")
     return {
@@ -209,12 +217,12 @@ async def get_recordInfo(record_id: int):
         "pass_rate": record.pass_rate,
         "run_time": record.run_time,
         "status": record.status,
-        "create_time": record.create_time.strftime()
+        "create_time": record.create_time
     }
 
+
 # 获取测试报告
-@router.get('/report/{record_id}', summary='获取测试报告')
+@router.get('/report/{record_id}/', summary='获取测试报告')
 async def get_report(record_id: int):
     report = await TestReport.get_or_none(record_id=record_id)
     return report
-
