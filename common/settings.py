@@ -27,6 +27,7 @@ INSTALLED_APPS = [
     'apps.Interface.models',
     'apps.Suite.models',
     'apps.TestTask.models',
+    'apps.Crontab.models'
 ]
 
 # ############## tortoise的基本配置 ###############

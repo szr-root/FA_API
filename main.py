@@ -10,6 +10,7 @@ from apps.projects.api import file_router
 from apps.Interface.api import router as interface_router
 from apps.Suite.api import router as suite_router
 from apps.TestTask.api import router as task_router
+from apps.Crontab.api import router as cron_router
 
 app = FastAPI(title='FastApi学习项目', summary='这个是学习项目的接口文档', version='0.0.1')
 
@@ -42,6 +43,8 @@ app.include_router(file_router)
 app.include_router(interface_router)
 app.include_router(suite_router)
 app.include_router(task_router)
+app.include_router(cron_router)
+
 
 register_tortoise(app, config=settings.TORTOISE_ORM, modules={'models': ['models']})
 
