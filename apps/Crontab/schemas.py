@@ -17,6 +17,7 @@ class Cron(BaseModel):
 class CornJobFrom(BaseModel):
     name: str = Field(description="任务名称")
     task: int = Field(description="执行的任务")
+    tester: str = Field(description="任务负责人")
     env: int = Field(description="执行环境")
     project: int = Field(description="所属项目")
     state: bool = Field(description="是否启用", default=True)

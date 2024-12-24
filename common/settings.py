@@ -67,6 +67,6 @@ MQ_CONFIG = {
 REDIS_CONFIG = {
     "host": "localhost",
     "port": 6379,
-    "db": 1,
+    "db": 14,
     "password": "qwe123"
 }
