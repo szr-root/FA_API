@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 
 
 class Cron(BaseModel):
+    second: str = Field(description="秒", default="*")
     minute: str = Field(description="分钟", default="*")
     hour: str = Field(description="小时", default="*")
     day: str = Field(description="日", default="*")
@@ -25,7 +26,7 @@ class CornJobFrom(BaseModel):
     date: str = Field(description="指定执行的时间", default="2030-11-25 17:07:00")
     interval: int = Field(description="执行间隔时间", default=60)
     crontab: Cron = Field(description="周期性任务规则",
-                          default=Cron(minute="30", hour="*", day="*", month="*", day_of_week="*"))
+                          default=Cron(second="30", minute="*", hour="*", day="*", month="*", day_of_week="*"))
 
 
 class UpdagteCornJobFrom(BaseModel):
@@ -34,4 +35,4 @@ class UpdagteCornJobFrom(BaseModel):
     date: str = Field(description="指定执行的时间", default="2030-11-25 17:07:00")
     interval: int = Field(description="执行间隔时间", default=60)
     crontab: Cron = Field(description="周期性任务规则",
-                          default=Cron(minute="30", hour="*", day="*", month="*", day_of_week="*"))
+                          default=Cron(second="30",minute="30", hour="*", day="*", month="*", day_of_week="*"))

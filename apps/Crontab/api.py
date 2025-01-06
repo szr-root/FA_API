@@ -29,7 +29,6 @@ from ..Suite.schemas import SuiteRunForm
 from ..TestTask.api import run_task
 from ..TestTask.schemas import RunTaskForm
 
-router = APIRouter(prefix='/api/crontab')
 local_timezone = pytz.timezone('Asia/Shanghai')
 
 # 配置 APScheduler
@@ -55,25 +54,23 @@ job_defaults = {
 scheduler = AsyncIOScheduler(jobstores=job_stores, job_defaults=job_defaults,
                              timezone='Asia/Shanghai')
 
-scheduler.start()
-
-
+# scheduler.start()
 # ==================================APS ==================================
+router = APIRouter(prefix='/api/crontab')
 
 
 async def run_test_task(task_id, env_id, tester):
     """执行定时任务"""
-    async with transactions.in_transaction():
-        await run_task(RunTaskForm(env=env_id, task=task_id, tester=tester))
-    print("任务执行提交", task_id, env_id)
-
+    print("任务执行提交", datetime.datetime.now(), task_id, env_id)
+    # async with transactions.in_transaction():
+    await run_task(RunTaskForm(env=env_id, task=task_id, tester=tester))
     # print("执行了", task_id, env_id)
 
 
 # 创建测试任务
-@router.post('/crontab', tags=['定时任务'], summary="创建定时任务", status_code=201)
+@router.post('/cronjob', tags=['定时任务'], summary="创建定时任务", status_code=201)
 async def create_crontab(item: CornJobFrom):
-    corn_task_id = str(int(time.time() * 1000))
+    # corn_task_id = str(int(time.time() * 1000))
 
     task = await TestTask.get_or_none(id=item.task)
     if not task:
@@ -104,21 +101,24 @@ async def create_crontab(item: CornJobFrom):
             else:
                 trigger = CronTrigger(**item.crontab.dict(), timezone=local_timezone)
 
-            job = scheduler.add_job(
-                func=run_test_task,
-                trigger=trigger,
-                id=corn_task_id,
-                name=item.name,
-                kwargs={"task_id": item.task, "env_id": item.env, "tester": item.tester}
-            )
             corn = await CronJob.create(name=item.name, project_id=item.project, task_id=item.task,
                                         env_id=item.env, run_type=item.run_type, interval=item.interval,
                                         date=item.date, crontab=item.crontab.dict(), state=item.state)
+
+            job = scheduler.add_job(
+                func=run_test_task,
+                trigger=trigger,
+                id=str(corn.id),
+                name=item.name,
+                kwargs={"task_id": item.task, "env_id": item.env, "tester": item.tester}
+            )
+
         except Exception as e:
             # 事务回滚
             await cron_tran.rollback()
             # 取消定时任务
-            scheduler.remove_job(corn_task_id)
+            if corn and scheduler.get_job(corn.id):
+                scheduler.remove_job(corn.id)
             raise HTTPException(status_code=422, detail=f'创建失败{e}')
         else:
             await cron_tran.commit()
@@ -126,13 +126,36 @@ async def create_crontab(item: CornJobFrom):
 
 
 # 获取定时任务列表
-@router.get('/crontab', tags=['定时任务'], summary="获取定时任务列表")
+@router.get('/cronjob', tags=['定时任务'], summary="获取定时任务列表")
 async def get_crontab_list(project: int):
-    return await CronJob.filter(project_id=project).all()
+    cronjob_list = await CronJob.filter(project_id=project).all().prefetch_related('env', 'task')
+    res = []
+
+    for corn in cronjob_list:
+        cron_job_data = {
+            "id": corn.id,
+            "create_time": corn.create_time,
+            "name": corn.name,
+            "task_name": corn.task.name,
+            "env_name": corn.env.name,
+            "run_type": '定时任务' if corn.run_type == 'date' else "间隔时间任务" if corn.run_type == 'Interval' else '周期性任务',
+            "state": corn.state
+        }
+
+        if corn.run_type == 'Interval':
+            cron_job_data['rule'] = corn.interval
+        elif corn.run_type == 'date':
+            cron_job_data['rule'] = corn.date
+        elif corn.run_type == 'crontab':
+            cron_job_data['rule'] = corn.crontab.dict() if corn.crontab else None
+
+        res.append(cron_job_data)
+
+    return res
 
 
 # 暂停/恢复定时任务
-@router.patch('/crontab/{id}', tags=['定时任务'], summary="暂停/恢复定时任务")
+@router.patch('/cronjob/{id}', tags=['定时任务'], summary="暂停/恢复定时任务")
 async def update_crontab(id: str):
     corn = await CronJob.get_or_none(id=id)
     if not corn:
@@ -157,7 +180,7 @@ async def update_crontab(id: str):
 
 
 # 删除定时任务
-@router.delete('/crontab/{id}', tags=['定时任务'], summary="删除定时任务", status_code=204)
+@router.delete('/cronjob/{id}', tags=['定时任务'], summary="删除定时任务", status_code=204)
 async def delete_crontab(id: str):
     corn = await CronJob.get_or_none(id=id)
     if not corn:
@@ -168,7 +191,7 @@ async def delete_crontab(id: str):
 
 
 # 修改定时任务配置
-@router.put('/crontab/{id}', tags=['定时任务'], summary="修改定时任务配置")
+@router.put('/cronjob/{id}', tags=['定时任务'], summary="修改定时任务配置")
 async def update_job(id: str, item: UpdagteCornJobFrom):
     corn = await CronJob.get_or_none(id=id)
     if not corn:
