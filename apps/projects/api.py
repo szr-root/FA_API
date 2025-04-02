@@ -64,7 +64,7 @@ async def edit_project(pro_id: int, item: EditProjectForm):
     if not project:
         raise HTTPException(status_code=422, detail="项目不存在")
     if item.leader:
-        leader = await Users.get_or_none(id=item.leader)
+        leader = await Users.get_or_none(nickname=item.leader)
         item.leader = leader
     await project.update_from_dict(item.dict()).save()
     return {

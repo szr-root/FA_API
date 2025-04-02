@@ -23,7 +23,7 @@ class ProjectInfo(BaseModel):
 
 class EditProjectForm(AddProjectForm):
     name: str = Field(description="项目名称", default='')
-    leader: int = Field(description="创建者", default='')
+    leader: str = Field(description="创建者", default='')
 
 
 class AddEnvForm(BaseModel):

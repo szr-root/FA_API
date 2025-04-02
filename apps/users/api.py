@@ -74,6 +74,17 @@ async def login(item: LoginForm):
     return LoginSchema(token=token, user=uinfo)
 
 
+# 返回用户列表
+@router.get("/list/", tags=["用户管理"], summary="用户列表", response_model=list[UserInfoSchema])
+async def get_user_list():
+    """
+    获取用户列表
+    :return:
+    """
+    users = await Users.all()
+    return [UserInfoSchema(**user.__dict__) for user in users]
+
+
 # 校验token
 @router.post("/verify/", tags=["用户管理"], summary="校验token", response_model=UserInfoSchema)
 async def verify_token(item: TokenForm):
@@ -85,7 +96,7 @@ async def verify_token(item: TokenForm):
     try:
         userinfo = auth.verify_token(item.token)
     except Exception as e:
-        raise HTTPException(422,'校验失败')
+        raise HTTPException(422, '校验失败')
     return userinfo
 
 

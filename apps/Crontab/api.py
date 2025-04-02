@@ -6,26 +6,19 @@ import datetime
 import time
 
 import pytz
-from fastapi import APIRouter
-from common.rabbitmq_producer import mq
 from common.settings import REDIS_CONFIG
 from fastapi import APIRouter, HTTPException
 from .schemas import CornJobFrom, UpdagteCornJobFrom
 from apps.Crontab.models import CronJob
-from apps.TestTask.models import TestTask, TestRecord, TestReport
+from apps.TestTask.models import TestTask
 from apps.projects.models import Env, Project
 from tortoise import transactions
-from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 from apscheduler.triggers.date import DateTrigger
 from apscheduler.triggers.cron import CronTrigger
-from apscheduler.executors.pool import ThreadPoolExecutor
 from apscheduler.jobstores.redis import RedisJobStore
 
-from ..Suite.api import run_scenes
-from ..Suite.models import Suite
-from ..Suite.schemas import SuiteRunForm
 from ..TestTask.api import run_task
 from ..TestTask.schemas import RunTaskForm
 
@@ -55,25 +48,33 @@ job_defaults = {
 scheduler = AsyncIOScheduler(jobstores=job_stores, job_defaults=job_defaults,
                              timezone='Asia/Shanghai')
 
-scheduler.start()
+
+# scheduler.start()
 
 
 # ==================================APS ==================================
 
 
+async def init_scheduler():
+    global scheduler
+    scheduler = AsyncIOScheduler(jobstores=job_stores, job_defaults=job_defaults, timezone='Asia/Shanghai')
+    scheduler.start()
+
+
 async def run_test_task(task_id, env_id, tester):
     """执行定时任务"""
-    async with transactions.in_transaction():
-        await run_task(RunTaskForm(env=env_id, task=task_id, tester=tester))
-    print("任务执行提交", task_id, env_id)
-
+    print("任务执行提交",datetime.datetime.now(), task_id, env_id)
+    # async with transactions.in_transaction():
+    #     await run_task(RunTaskForm(env=env_id, task=task_id, tester=tester))
     # print("执行了", task_id, env_id)
+
+
 
 
 # 创建测试任务
 @router.post('/crontab', tags=['定时任务'], summary="创建定时任务", status_code=201)
 async def create_crontab(item: CornJobFrom):
-    corn_task_id = str(int(time.time() * 1000))
+    # corn_task_id = str(int(time.time() * 1000))
 
     task = await TestTask.get_or_none(id=item.task)
     if not task:
@@ -104,21 +105,21 @@ async def create_crontab(item: CornJobFrom):
             else:
                 trigger = CronTrigger(**item.crontab.dict(), timezone=local_timezone)
 
-            job = scheduler.add_job(
-                func=run_test_task,
-                trigger=trigger,
-                id=corn_task_id,
-                name=item.name,
-                kwargs={"task_id": item.task, "env_id": item.env, "tester": item.tester}
-            )
             corn = await CronJob.create(name=item.name, project_id=item.project, task_id=item.task,
                                         env_id=item.env, run_type=item.run_type, interval=item.interval,
                                         date=item.date, crontab=item.crontab.dict(), state=item.state)
+            job = scheduler.add_job(
+                func=run_test_task,
+                trigger=trigger,
+                id=str(corn.id),
+                name=item.name,
+                kwargs={"task_id": item.task, "env_id": item.env, "tester": item.tester}
+            )
         except Exception as e:
             # 事务回滚
             await cron_tran.rollback()
             # 取消定时任务
-            scheduler.remove_job(corn_task_id)
+            scheduler.remove_job(corn.id)
             raise HTTPException(status_code=422, detail=f'创建失败{e}')
         else:
             await cron_tran.commit()
@@ -126,7 +127,7 @@ async def create_crontab(item: CornJobFrom):
 
 
 # 获取定时任务列表
-@router.get('/crontab', tags=['定时任务'], summary="获取定时任务列表")
+@router.get('/cronjob', tags=['定时任务'], summary="获取定时任务列表")
 async def get_crontab_list(project: int):
     return await CronJob.filter(project_id=project).all()
 
