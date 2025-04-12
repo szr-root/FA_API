@@ -12,6 +12,8 @@ from common import settings
 from .models import Project, Env, TestFile
 from .schemas import AddProjectForm, ProjectInfo, EditProjectForm, AddEnvForm, EnvInfo, UpdateEnvForm
 from ..users.models import Users
+from common.tencent_cos import upload_file_cos,check_file_exists
+
 
 router = APIRouter(prefix='/api/testPro', tags=['项目'])
 file_router = APIRouter(prefix='', tags=['文件'])
@@ -157,28 +159,30 @@ async def del_env(env_id: int):
 # 上传文件
 @router.post("/files", tags=["项目"], summary="创建测试文件", status_code=201)
 async def add_testfile(file: UploadFile):
-    print(file)
     size = file.size
     name = file.filename
     if size > 1024 * 1024 * 5:
         raise HTTPException(detail="文件大小不能超过5M", status_code=400)
-    file_path = settings.MEDIA_ROOT + '/' + name
-    if os.path.isfile(file_path):
+
+    if check_file_exists(name):
         raise HTTPException(detail="文件已存在", status_code=400)
+
+    # file_path = settings.MEDIA_ROOT + '/' + name
+    # if os.path.isfile(file_path):
+    #     raise HTTPException(detail="文件已存在", status_code=400)
 
     file_type = file.content_type
     # 修改info字段值
-    info = json.dumps([name, f'files/{name}', file_type])
-    os.makedirs(os.path.dirname(file_path), exist_ok=True)
-    with open(file_path, 'wb') as f:
-        f.write(await file.read())
+    info = json.dumps([name, file_type])
+    # os.makedirs(os.path.dirname(file_path), exist_ok=True)
+    upload_file_cos(file_name=name, file_bytes=file.file.read())
     testfile = await TestFile.create(file=name, info=info)
     return testfile
 
 
 # 获取测试文件
 @router.get("/files", tags=["项目"], summary="获取测试文件")
-async def get_testfiles():
+async def get_testfile():
     test_files = await TestFile.all()
     return [testfile for testfile in test_files]
 
