@@ -83,9 +83,19 @@ def check_file_exists(file_name):
     return response
 
 
+def del_file(file_name):
+    response = client.delete_object(
+        Bucket=Bucket,
+        Key=file_name
+    )
+
+
 if __name__ == '__main__':
     with open('earth.png', 'rb') as f:
         file_bytes = f.read()
     url = upload_file_cos('earth.png', file_bytes)
     res = check_file_exists('earth.png')
     print(res)
+    del_file('earth.png')
+    res = check_file_exists('earth.png')
+    print('2////',res)

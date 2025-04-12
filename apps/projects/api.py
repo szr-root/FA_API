@@ -12,7 +12,7 @@ from common import settings
 from .models import Project, Env, TestFile
 from .schemas import AddProjectForm, ProjectInfo, EditProjectForm, AddEnvForm, EnvInfo, UpdateEnvForm
 from ..users.models import Users
-from common.tencent_cos import upload_file_cos,check_file_exists
+from common.tencent_cos import upload_file_cos,check_file_exists,del_file
 
 
 router = APIRouter(prefix='/api/testPro', tags=['项目'])
@@ -193,8 +193,11 @@ async def del_testfile(file_id: int):
     testfile = await TestFile.get_or_none(id=file_id)
     if not testfile:
         raise HTTPException(status_code=422, detail="文件不存在")
-    file_path = settings.MEDIA_ROOT + '/' + testfile.file
-    os.remove(file_path)
+
+    # file_path = settings.MEDIA_ROOT + '/' + testfile.file
+    # os.remove(file_path)
+    # 从腾讯云存储删除文件
+    del_file(testfile.file)
     await testfile.delete()
 
 
@@ -204,20 +207,25 @@ async def show_testfile(file_name: str):
     testfile = await TestFile.get_or_none(file=file_name)
     if not testfile:
         raise HTTPException(status_code=422, detail="文件不存在")
-    file_path = settings.MEDIA_ROOT + '/' + testfile.file
-    # 检查文件是否存在目录
-    if not os.path.exists(file_path):
-        raise HTTPException(status_code=404, detail="files目录中找不到文件")
+
+    # file_path = settings.MEDIA_ROOT + '/' + testfile.file
+    # # 检查文件是否存在目录
+    # if not os.path.exists(file_path):
+    #     raise HTTPException(status_code=404, detail="files目录中找不到文件")
+
+    if not check_file_exists(testfile.file):
+        raise HTTPException(status_code=404, detail="文件不存在")
+
     # 创建 FileResponse 对象
-    response = FileResponse(file_path, filename=testfile.file)
+    response = FileResponse(testfile.file, filename=testfile.file)
 
     # 设置 Content-Type
     content_type = 'image/jpeg'
-    if file_path.endswith('.png'):
+    if testfile.file.endswith('.png'):
         content_type = 'image/png'
-    elif file_path.endswith('.gif'):
+    elif testfile.file.endswith('.gif'):
         content_type = 'image/gif'
-    elif file_path.endswith('.mp4'):
+    elif testfile.file.endswith('.mp4'):
         content_type = 'video/mp4'
     response.headers['Content-Type'] = content_type
     # 设置 Content-Disposition
