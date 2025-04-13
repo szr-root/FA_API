@@ -91,11 +91,11 @@ def del_file(file_name):
 
 
 if __name__ == '__main__':
-    with open('earth.png', 'rb') as f:
+    with open('pro01.png', 'rb') as f:
         file_bytes = f.read()
-    url = upload_file_cos('earth.png', file_bytes)
-    res = check_file_exists('earth.png')
+    url = upload_file_cos('pro01.png', file_bytes)
+    res = check_file_exists('pro01.png')
     print(res)
-    del_file('earth.png')
-    res = check_file_exists('earth.png')
-    print('2////',res)
+    # del_file('earth.png')
+    # res = check_file_exists('earth.png')
+    # print('2////', res)

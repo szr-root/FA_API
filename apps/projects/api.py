@@ -172,10 +172,12 @@ async def add_testfile(file: UploadFile):
     #     raise HTTPException(detail="文件已存在", status_code=400)
 
     file_type = file.content_type
-    # 修改info字段值
-    info = json.dumps([name, file_type])
+
     # os.makedirs(os.path.dirname(file_path), exist_ok=True)
-    upload_file_cos(file_name=name, file_bytes=file.file.read())
+    img_url = upload_file_cos(file_name=name, file_bytes=file.file.read())
+
+    # 修改info字段值
+    info = json.dumps([name, file_type, img_url])
     testfile = await TestFile.create(file=name, info=info)
     return testfile
 
