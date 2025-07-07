@@ -175,6 +175,7 @@ async def run_case(item: RunCaseForm):
         },
         "DB": env.db,
         "global_func": env.global_func,
+        "decrypt_py":env.decrypt_py
     }
 
     # 组装测试数据

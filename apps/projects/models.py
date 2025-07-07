@@ -29,6 +29,7 @@ class Env(models.Model):
     db = fields.JSONField(description='数据库配置', default=list, null=True, blank=True)
     headers = fields.JSONField(description='请求头', default=dict, null=True, blank=True)
     global_func = fields.TextField(description='用例工具文件', default="", null=True, blank=True)
+    decrypt_py = fields.TextField(description='解密文件', default="", null=True, blank=True)
     name = fields.CharField(max_length=30, description='测试环境名称')
     host = fields.CharField(description='base_url地址', max_length=100, blank=True, null=True)
 

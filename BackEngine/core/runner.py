@@ -146,7 +146,7 @@ class TestRunner:
         db.init_connect(self.env_data.pop('DB'))
 
         ENV.update(self.env_data)
-
+        # self.decrypt_py = self.env_data.pop('decrypt_py')
         # 通过exec将字符串中的python变量加载到functools这个模块的命名空间中
         exec(ENV["global_func"], my_functools.__dict__)
 

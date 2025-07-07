@@ -111,6 +111,7 @@ async def get_envs(project: int):
         "db": env.db,
         "global_variable": env.global_variable,
         "debug_global_variable": env.debug_global_variable,
+        "decrypt_py":env.decrypt_py,
         "global_func": env.global_func
     }
         for env in envs]
@@ -131,6 +132,7 @@ async def get_envInfo(env_id: int):
         "db": env.db,
         "global_variable": env.global_variable,
         "debug_global_variable": env.debug_global_variable,
+        "decrypt_py": env.decrypt_py,
         "global_func": env.global_func
     }
 

@@ -16,6 +16,13 @@ from BackEngine.core.caselog import CaseLogHandel
 
 from BackEngine.core.dbclient import DBClient
 
+import base64
+import json
+
+from Crypto.Cipher import AES
+from Crypto.Util.Padding import unpad
+
+
 # 定义一个全局变量用来保存测试执行环境的数据
 ENV = {}
 # 创建一个数据库连接对象
@@ -34,6 +41,7 @@ class BaseCase(CaseLogHandel):
         # 在前后置脚本的执行环境中内置一些变量
         test = self
         global_val = ENV.get('Envs', {})
+        decrypt_py = ENV.get('decrypt_py','')
         print = self.print_log
         # 获取用例的前置脚本
         setup_script = data.get('setup_script')
@@ -162,6 +170,20 @@ class BaseCase(CaseLogHandel):
         self.requests_header = self.convert_to_dict(response.request.headers)
         self.response_header = self.convert_to_dict(response.headers)
         self.response_body = response.text
+        # 解密
+        decrypt_py = ENV.get('decrypt_py')
+        if decrypt_py.strip() != '':
+            self.info_log("*****执行解密脚本*****")
+            text = response.text
+            # 定义一个命名空间字典用于存储 exec 执行后的变量
+            namespace = {'text': text}
+            exec(decrypt_py, globals(), namespace)
+            # 从命名空间中获取 json_data
+            json_data_result = namespace.get('json_data', None)
+            # 输出结果
+            print(json_data_result)
+            self.response_body = json.dumps(json_data_result)
+
         self.requests_body = response.request.body.decode('utf-8')
         self.run_time = str(round(time.time() - start_time, 2)) + 's'
         self.status_code = response.status_code

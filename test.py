@@ -1,58 +1,62 @@
-import datetime
-import time
+import base64
+import json
 
-from apscheduler.schedulers.background import BackgroundScheduler
-from apscheduler.triggers.interval import IntervalTrigger
-from apscheduler.triggers.date import DateTrigger
-from apscheduler.triggers.cron import CronTrigger
+from Crypto.Cipher import AES
+from Crypto.Util.Padding import unpad
 
-from apscheduler.schedulers.background import BackgroundScheduler
-from apscheduler.executors.pool import ThreadPoolExecutor
-from apscheduler.jobstores.redis import RedisJobStore
-from apscheduler.triggers.cron import CronTrigger
+decrypt_body = """
+# 1.大小写转换
+text = text.swapcase()
+# print("======1..text",text)
 
-# 配置 APScheduler
-jobstores = {
-    'default': RedisJobStore(host='localhost', port=6379, db=15, password='qwe123')
-}
-# 设置最大的执行线程数
-executors = {
-    'default': ThreadPoolExecutor(20)
-}
-# 设置最大的任务数
-job_defaults = {
-    'coalesce': False,
-    'max_instances': 10
-}
-# 创建一个调度器
-scheduler = BackgroundScheduler(jobstores=jobstores, executors=executors, job_defaults=job_defaults)
+# 2. 逆序
+text = text[::-1]
+# print("======2..text",text)
 
+# 3. ASCII码-2
+text = ''.join(chr(ord(c) - 2) for c in text)
+# print("=======3..text",text)
 
-def task1(name):
-    print(f'执行间隔任务:{datetime.datetime.now()}----{name}')
+# 4. Base64解码
+try:
+    decoded_data = base64.b64decode(text)
+except Exception as e:
+    # 处理Base64解码异常
+    print("Base64 decode error:", e)
+    decoded_data = b''
 
+# 5. AES解密
+try:
+    key = base64.b64decode('GvyIymDJv32xXYlkgYzptV==')
+    cipher = AES.new(key, AES.MODE_ECB)
+    decrypted = cipher.decrypt(decoded_data)
+    unpadded_data = unpad(decrypted, AES.block_size, style='pkcs7')
+    text = unpadded_data.decode('utf-8')
+except Exception as e:
+    # 处理AES解密异常
+    print("AES decrypt error:", e)
+    text = ''
 
-def task2(name):
-    print(f'执行(固定)时间点任务:{datetime.datetime.now()}----{name}')
+# 6. 将字符串转换为JSON对象
+try:
+    json_data = json.loads(text)
+except Exception as e:
+    # 处理JSON解析异常
+    print("JSON parse error:", e)
+    json_data = {}
+# print("6..text",json_data)
 
+"""
 
-def task3(name):
-    print(f'执行周期任务:{datetime.datetime.now()}----{name}')
+text = r"""?oVvdC[Zlf[\8kqlLu\dx{W|XGgeDp|kSoWFMCK1|I2l;5fW5Gi|DHZu{kw2iZXseWct8;NVMCZL|LxJX3ExkfDR[:pt49nJ;9[c1LRxrQ:P\FwfGDq-lpK2Tm[7GZg9XvOY\[SoQw|m6PgFzxTWtgFR[FC3voEk1dU76iCRIL|Cpm\1{7hp4H1:WpEQ;iEZ7kMkfW-qW22Yw5vUmI{3wQQfs\MqhD4GmFg[-Pgr5TF5;jG[{SLkvUy6i1\rMPEc6fiL7TW5ztt{IdCiOcWgfpEpWhVSoHG;3HLT4x9MPwJ2j{mhyq{xNYUJ8LP9eDlZyp4Zu5gJECc7ZTxDYrvTCeYH57ZSXYK{:N15NVy\hLkNZSNof9-2fP-lSvIUDi;ox-QIZzfE{5tnFVPE-KYe9M4EX7RcoQfv8{nrMmOL-w88ujN32Fh-E2s1|fSdWXWKhOet5Zn2eW2sk|TPmnUO{Y\h8DLKOSuY8Ky|yh2x76FivW6Svnu7QU2yKGoE;UG{MT;NhjfReHzhXpVEejp|UeR3-MJxjcXdSCunlZlpmG;PjTd:RFTo7f2Vn\fNFkNpd{px2g{t9XzCq\6:y|[;nwq5vlKPOOkZr[sz|nWXSpCpG1\dIx|ry6T|WnIpZtqTh|ClOs1qD[4gwIFl-VnfzNXUg5MdE13wpdU6c5h\|YSl"""
 
+# 定义一个命名空间字典用于存储 exec 执行后的变量
+namespace = {'text': text}
 
-# 添加一个3s一次的间隔任务
-scheduler.add_job(task1, id='interval_task', trigger=IntervalTrigger(seconds=3), args=['间隔3s的任务'])
+exec(decrypt_body, globals(), namespace)
 
-# # 设置一个固定时间的任务
-# scheduler.add_job(task2, id='date_task', trigger=DateTrigger(run_date='2024-12-24 14:50:00'), args=['固定时间点任务'])
-#
-# # 创建一个周期任务，周期间隔为5s
-# scheduler.add_job(task3, id='cron_task',
-#                   trigger=CronTrigger(year='*', month='*', day='*', hour='*', minute='*', second='5'),
-#                   args=['周期任务'])
+# 从命名空间中获取 json_data
+json_data_result = namespace.get('json_data', None)
 
-# 启动调度器
-scheduler.start()
-
-while True:
-    time.sleep(1)
+# 输出结果
+print(json_data_result)

@@ -11,10 +11,11 @@ from qcloud_cos import CosS3Client
 import re
 import os
 import logging
+from .settings import TENCENT_CONFIG
 
-os.environ['COS_SECRET_ID'] = ''
-os.environ['COS_SECRET_KEY'] = ''
-Bucket = 'testapi-1301806088'
+os.environ['COS_SECRET_ID'] = TENCENT_CONFIG.get('secret_id')
+os.environ['COS_SECRET_KEY'] = TENCENT_CONFIG.get('secret_key')
+Bucket = TENCENT_CONFIG.get('bucket')
 
 
 class URLLogHandler(logging.Handler):
