@@ -3,7 +3,10 @@
 # @Time : 2024/12/06
 # @File : settings.py
 import os
+import dotenv
 from pathlib import Path
+
+dotenv.load_dotenv('.env')
 
 # ############## 文件存储配置信息 ###############
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -49,7 +52,7 @@ TORTOISE_ORM = {
 
 # ==========================token配置 ==========================
 # 64位秘钥
-SECRET_KEY = "49bbf2c7a0df9c9a76e9347fe208f8949371d202c386e05ec4ec6a6caf98e452"
+SECRET_KEY = os.getenv('SECRET_KEY')
 # 加密算法
 ALGORITHM = "HS256"
 
@@ -58,8 +61,8 @@ TOKEN_TIMEOUT = 60 * 60 * 24 * 7
 
 # ==========================RabbitMQ配置 ==========================
 MQ_CONFIG = {
-    'host': '113.45.179.110',
-    'port': 5672,
+    'host': os.getenv('MQ_HOST'),
+    'port': os.getenv('MQ_PORT'),
     'queue': 'web_test_queue',
 }
 
@@ -69,4 +72,11 @@ REDIS_CONFIG = {
     "port": 6379,
     "db": 14,
     "password": "songzhaoruizx"
+}
+
+# ==========================腾讯存储配置 ==========================
+TENCENT_CONFIG={
+    "secret_id": os.getenv('COS_SECRET_ID'),
+    "secret_key": os.getenv('COS_SECRET_KEY'),
+    "bucket": os.getenv('COS_BUCKET')
 }
