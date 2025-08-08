@@ -142,13 +142,25 @@ class TestRunner:
         self.result = []
 
     def run(self):
+        db_config = self.env_data.pop('DB')
+        if db_config == '':
+            db_config = [{
+                "name": "local",
+                "type": "mysql",
+                "config": {"host": "127.0.0.1",
+                           "port": 3306,
+                           "user": "root",
+                           "password": "songzhaoruizx"
+                           }
+            }]
         # 初始数据库连接
-        db.init_connect(self.env_data.pop('DB'))
+        db.init_connect(db_config)
 
-        ENV.update(self.env_data)
+        ENV = {**self.env_data.get('ENV')}
+        # ENV.update(self.env_data)
         # self.decrypt_py = self.env_data.pop('decrypt_py')
         # 通过exec将字符串中的python变量加载到functools这个模块的命名空间中
-        exec(ENV["global_func"], my_functools.__dict__)
+        exec(self.env_data["global_func"], my_functools.__dict__)
 
         # 遍历所有测试用例
         for items in self.cases:
@@ -161,18 +173,18 @@ class TestRunner:
             result = TestResult(name=name, all=len(items["Cases"]))
             # 遍历测试集执行用例
             for testcase in items["Cases"]:
-                self.perform(testcase, result)
+                env = self.perform(testcase, result, ENV)
             # 获取每条记录器的结果,保存起来
             self.result.append(result.get_result_info())
         # 断开连接
         db.close_db_connection()
-        return self.result
+        return self.result, ENV
 
-    def perform(self, case, result):
+    def perform(self, case, result, env):
         c = BaseCase()
         # run_time = 0
         try:
-            c.perform(case)
+            new_ENV = c.perform(case, env)
         except AssertionError as e:
             # print('用例断言失败')
             result.add_fail(c)
@@ -184,6 +196,7 @@ class TestRunner:
         else:
             # print('用例执行通过')
             result.add_success(c)
+            return new_ENV
             # result.run_time = run_time
 
 

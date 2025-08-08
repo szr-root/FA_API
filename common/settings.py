@@ -3,10 +3,18 @@
 # @Time : 2024/12/06
 # @File : settings.py
 import os
-import dotenv
+from dotenv import load_dotenv
 from pathlib import Path
 
-dotenv.load_dotenv('.env')
+
+env_path = Path(__file__).resolve().parent / '.env'
+print(env_path)
+if env_path.exists():
+    print(f"加载 .env 文件: {env_path}")
+    load_dotenv(dotenv_path=env_path)
+else:
+    print(f"⚠️ .env 文件未找到: {env_path}")
+
 
 # ############## 文件存储配置信息 ###############
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -80,3 +88,6 @@ TENCENT_CONFIG={
     "secret_key": os.getenv('COS_SECRET_KEY'),
     "bucket": os.getenv('COS_BUCKET')
 }
+
+if __name__ == '__main__':
+    print(TENCENT_CONFIG)

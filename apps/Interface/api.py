@@ -2,6 +2,7 @@
 # @Author : John
 # @Time : 2024/12/11
 # @File : api.py
+import json
 
 from fastapi import APIRouter, HTTPException
 from .models import InterFace, InterFaceCase
@@ -175,7 +176,7 @@ async def run_case(item: RunCaseForm):
         },
         "DB": env.db,
         "global_func": env.global_func,
-        "decrypt_py":env.decrypt_py
+        "decrypt_py": env.decrypt_py
     }
 
     # 组装测试数据
@@ -185,5 +186,15 @@ async def run_case(item: RunCaseForm):
             "Cases": [cases]
         }
     ]
-    runner = TestRunner(case_datas, env_config).run()
+    runner, new_env = TestRunner(case_datas, env_config).run()
+    # print(type(new_env))
+
+    # 创建一个不包含指定键的新字典
+    exclude_keys = {'host', 'headers', 'global_func', 'decrypt_py'}
+    env.debug_global_variable = {
+        k: v for k, v in new_env['ENV'].items()
+        if k not in exclude_keys
+    }
+    await env.save()
+
     return runner[0]['cases'][0]

@@ -2,6 +2,7 @@
 # @Author : John
 # @Time : 2024/12/13
 # @File : api.py
+import json
 
 from fastapi import APIRouter, HTTPException
 from tortoise.query_utils import Prefetch
@@ -12,22 +13,24 @@ from .models import Suite, SuiteToCase
 from apps.projects.models import Project, Env
 from ..Interface.models import InterFaceCase
 
-router = APIRouter(prefix='/api/testFlow', tags=['测试套件（业务流）'])
+router = APIRouter(prefix='/api/TestFlow', tags=['测试套件（业务流）'])
 
 
 # 创建测试套件
-@router.post('/scenes', summary='创建测试套件', status_code=201)
+@router.post('/flows', summary='创建测试套件', status_code=201)
 async def create_scenes(item: AddSuiteForm):
     project = await Project.get_or_none(id=item.project)
     if not project:
         raise HTTPException(status_code=422, detail="项目不存在")
     item.project = project
     suite = await Suite.create(**item.dict())
+    # suite = await Suite.create(item.model_dump())
+
     return suite
 
 
 # 获取测试业务流列表
-@router.get('/scenes', summary='获取测试业务流列表', response_model=list[SuiteSchema])
+@router.get('/flows', summary='获取测试业务流列表', response_model=list[SuiteSchema])
 async def get_scenes(project: int):
     project = await Project.get_or_none(id=project)
     if not project:
@@ -41,7 +44,7 @@ async def get_scenes(project: int):
 
 
 # 删除测试业务流
-@router.delete('/scenes/{suite_id}', status_code=204, summary='删除测试业务流')
+@router.delete('/flows/{suite_id}', status_code=204, summary='删除测试业务流')
 async def del_scenes(suite_id: int):
     suite = await Suite.get_or_none(id=suite_id)
     if not suite:
@@ -50,7 +53,7 @@ async def del_scenes(suite_id: int):
     await suite.delete()
 
 
-@router.patch('/scenes/{suite_id}', summary='修改测试业务流')
+@router.patch( '/flows/{suite_id}', summary='修改测试业务流')
 async def update_scenes(suite_id: int, item: UpdateSuiteForm):
     suite = await Suite.get_or_none(id=suite_id)
     if not suite:
@@ -61,7 +64,7 @@ async def update_scenes(suite_id: int, item: UpdateSuiteForm):
 
 
 # 修改测试业务流中用例执行顺序
-@router.patch('/icases/order/', summary='修改测试业务流中用例执行顺序')
+@router.patch('/cases_order', summary='修改测试业务流中用例执行顺序')
 async def update_scenes(item: list[UpdateOrder]):
     # suite = await Suite.get_or_none(id=suite_id)
     # if not suite:
@@ -76,9 +79,9 @@ async def update_scenes(item: list[UpdateOrder]):
 
 
 # 获取业务流中所有用例
-@router.get('/icases', summary='获取业务流中所有用例')
-async def get_icases(scene: int):
-    suite = await Suite.get_or_none(id=scene)
+@router.get('/flows/cases', summary='获取业务流中所有用例')
+async def get_cases(flow: int):
+    suite = await Suite.get_or_none(id=flow)
     if not suite:
         raise HTTPException(status_code=422, detail="业务流不存在")
 
@@ -102,10 +105,10 @@ async def get_icases(scene: int):
 
 
 # 运行测试业务流
-@router.post('/scenes/run', summary='运行测试业务流')
+@router.post('/flows/run', summary='运行测试业务流')
 async def run_scenes(item: SuiteRunForm):
     env_id = item.env
-    suite_id = item.scene
+    suite_id = item.flow
     env = await Env.get_or_none(id=env_id)
     if not env:
         raise HTTPException(status_code=422, detail="环境不存在")
@@ -118,10 +121,11 @@ async def run_scenes(item: SuiteRunForm):
             "host": env.host,
             "headers": env.headers,
             **env.global_variable,
-            **env.debug_global_variable
+            **env.debug_global_variable,
         },
         "DB": env.db,
         "global_func": env.global_func,
+        "decrypt_py": env.decrypt_py
     }
     cases = await SuiteToCase.filter(suite_id=suite_id).prefetch_related(
         Prefetch('suite_case', queryset=InterFaceCase.all().select_related('interface'))
@@ -152,9 +156,9 @@ async def run_scenes(item: SuiteRunForm):
 
 
 # 向测试业务流中添加测试用例
-@router.post('/icases', summary='向测试业务流中添加测试用例',status_code=201)
+@router.post('/flows/cases', summary='向测试业务流中添加测试用例',status_code=201)
 async def add_icase(item: AddSuiteToCaseForm):
-    suite = await Suite.get_or_none(id=item.scene)
+    suite = await Suite.get_or_none(id=item.flow)
     if not suite:
         raise HTTPException(status_code=422, detail="业务流不存在")
     suite_case = await InterFaceCase.get_or_none(id=item.icase)
@@ -164,7 +168,7 @@ async def add_icase(item: AddSuiteToCaseForm):
 
 
 # 删除业务流中的用例
-@router.delete('/icases/{case_id}', summary='删除业务流中的用例', status_code=204)
+@router.delete('/flows/cases/{case_id}', summary='删除业务流中的用例', status_code=204)
 async def del_icase(case_id: int):
     suite_case = await SuiteToCase.get_or_none(id=case_id)
     if not suite_case:

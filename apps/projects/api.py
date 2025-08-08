@@ -16,7 +16,7 @@ from common.tencent_cos import upload_file_cos,check_file_exists,del_file
 
 
 router = APIRouter(prefix='/api/testPro', tags=['项目'])
-file_router = APIRouter(prefix='', tags=['文件'])
+file_router = APIRouter(prefix='/api/testFile', tags=['文件'])
 
 
 # ############################################# 项目相关 #############################################
@@ -159,7 +159,7 @@ async def del_env(env_id: int):
 # ############################################# 文件相关 #############################################
 
 # 上传文件
-@router.post("/files", tags=["项目"], summary="创建测试文件", status_code=201)
+@file_router.post("/files", tags=["项目"], summary="创建测试文件", status_code=201)
 async def add_testfile(file: UploadFile):
     size = file.size
     name = file.filename
@@ -185,14 +185,14 @@ async def add_testfile(file: UploadFile):
 
 
 # 获取测试文件
-@router.get("/files", tags=["项目"], summary="获取测试文件")
+@file_router.get("/files", tags=["项目"], summary="获取测试文件")
 async def get_testfile():
     test_files = await TestFile.all()
     return [testfile for testfile in test_files]
 
 
 # 删除测试文件
-@router.delete("/files/{file_id}", tags=["项目"], summary="删除测试文件", status_code=204)
+@file_router.delete("/files/{file_id}", tags=["项目"], summary="删除测试文件", status_code=204)
 async def del_testfile(file_id: int):
     testfile = await TestFile.get_or_none(id=file_id)
     if not testfile:

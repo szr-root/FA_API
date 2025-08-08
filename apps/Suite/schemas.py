@@ -17,7 +17,7 @@ class UpdateOrder(BaseModel):
 
 
 class AddSuiteToCaseForm(BaseModel):
-    scene: int = Field(description='关联套件')
+    flow: int = Field(description='关联套件')
     icase: int = Field(description='关联用例')
     sort: int = Field(description='执行顺序', default=1)
 
@@ -36,4 +36,4 @@ class SuiteSchema(BaseModel):
 
 class SuiteRunForm(BaseModel):
     env: int = Field(description='环境id')
-    scene: int = Field(description='套件id')
+    flow: int = Field(description='套件id')

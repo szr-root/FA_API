@@ -22,11 +22,22 @@ import json
 from Crypto.Cipher import AES
 from Crypto.Util.Padding import unpad
 
-
 # 定义一个全局变量用来保存测试执行环境的数据
 ENV = {}
 # 创建一个数据库连接对象
 db = DBClient()
+
+
+# items = [{
+#     "name": "local",
+#     "type": "mysql",
+#     "config": {"host": "127.0.0.1",
+#                "port": 3306,
+#                "user": "root",
+#                "password": "songzhaoruizx"
+#                }
+# }]
+# db.init_connect(items)
 
 
 # 创建一个数据库连接对象
@@ -36,12 +47,15 @@ db = DBClient()
 class BaseCase(CaseLogHandel):
     """用例执行的基本父类"""
 
-    def __run_script(self, data):
+    def __run_script(self, data, env):
         """专门执行前后置脚本的函数"""
         # 在前后置脚本的执行环境中内置一些变量
         test = self
-        global_val = ENV.get('Envs', {})
-        decrypt_py = ENV.get('decrypt_py','')
+        global_val = env
+        global ENV
+        ENV = env
+        # decrypt_py = ENV.get('decrypt_py','')
+
         print = self.print_log
         # 获取用例的前置脚本
         setup_script = data.get('setup_script')
@@ -55,14 +69,14 @@ class BaseCase(CaseLogHandel):
         exec(teardown_script)
         yield
 
-    def __setup_script(self, data):
+    def __setup_script(self, data, env):
         """
         脚本执行前
         :param data:
         :return:
         """
         # 使用脚本执行器函数创建一个生成器对象
-        self.script_hook = self.__run_script(data)
+        self.script_hook = self.__run_script(data, env)
         # 执行前置脚步（执行生成器中的代码）
         next(self.script_hook)
 
@@ -80,19 +94,20 @@ class BaseCase(CaseLogHandel):
 
     def __handler_requests_data(self, data):
         """处理请求数据的方法"""
+        global ENV
         request_data = {}
         # 1、处理请求的url
         request_data["method"] = data['interface']['method']
         url = data['interface']['url']
         if not url.startswith('http'):
             # 和base_url进行拼接
-            url = ENV['ENV'].get('host') + url
+            url = ENV.get('ENV').get('host') + url
         request_data["url"] = url
         self.url = url
         self.method = data['interface']['method']
         # 2、处理请求的headers
         # 获取全局请求头
-        headers: dict = ENV['ENV'].get('headers')
+        headers: dict = ENV.get('ENV').get('headers')
         # 将全局请求头和当前用例中的请求头进行合并
         headers.update(data['headers'])
         request_data['headers'] = headers
@@ -172,19 +187,21 @@ class BaseCase(CaseLogHandel):
         self.response_body = response.text
         # 解密
         decrypt_py = ENV.get('decrypt_py')
-        if decrypt_py.strip() != '':
-            self.info_log("*****执行解密脚本*****")
-            text = response.text
-            # 定义一个命名空间字典用于存储 exec 执行后的变量
-            namespace = {'text': text}
-            exec(decrypt_py, globals(), namespace)
-            # 从命名空间中获取 json_data
-            json_data_result = namespace.get('json_data', None)
-            # 输出结果
-            print(json_data_result)
-            self.response_body = json.dumps(json_data_result)
-
-        self.requests_body = response.request.body.decode('utf-8')
+        if decrypt_py is not None and response.status_code == 200:
+            decrypt_py = decrypt_py.strip()
+            if decrypt_py != '':
+                self.info_log("*****执行解密脚本*****")
+                text = response.text
+                # 定义一个命名空间字典用于存储 exec 执行后的变量
+                namespace = {'text': text}
+                exec(decrypt_py, globals(), namespace)
+                # 从命名空间中获取 json_data
+                json_data_result = namespace.get('json_data', None)
+                # 输出结果
+                # print(json_data_result)
+                self.response_body = json.dumps(json_data_result)
+                self.info_log("*****完成解密*****")
+                # self.requests_body = response.request.body.decode('utf-8')
         self.run_time = str(round(time.time() - start_time, 2)) + 's'
         self.status_code = response.status_code
         # self.info_log('请求地址', response.url)
@@ -196,9 +213,10 @@ class BaseCase(CaseLogHandel):
         # self.info_log(response.text)
         # 返回响应对象
 
-        return response
+        # return response
+        return self.response_body
 
-    def perform(self, data):
+    def perform(self, data, env):
         """
         执行单条用例的入口方法
         :param data:
@@ -208,11 +226,24 @@ class BaseCase(CaseLogHandel):
         self.data = data
         self.info_log('===开始执行用例：', self.title, '===')
         # 执行前置脚本
-        self.__setup_script(data)
+        self.__setup_script(data, env)
         # 发送请求
         response = self.__send_request(data)
         # 执行后置脚本
         self.__teardown_script(data, response)
+        # global ENV
+        return ENV
+
+    def save_env_variable(self, name, value):
+        """
+        保存环境变量
+        :param name:
+        :param value:
+        :return:
+        """
+        self.info_log(f"设置局部变量{name}:", value)
+        # db.local.execute(f"UPDATE api_fastapi.Env SET global_variable= '{value}' WHERE name='{name}'")
+        ENV['ENV'][name] = value
 
     def save_global_variable(self, name, value):
         """
@@ -220,8 +251,18 @@ class BaseCase(CaseLogHandel):
         :param data:
         :return:
         """
-        self.info_log("设置全局变量:", name, value)
-        ENV['Envs'][name] = value
+        self.info_log(f"设置全局变量{name}:", value)
+        # self.info_log(f"{ENV['ENV']['host']}")
+        ENV['ENV'][name] = value
+
+    def del_env_variable(self, name):
+        """
+        删除环境变量
+        :param name:
+        :return:
+        """
+        self.info_log("删除环境变量:", name)
+        del ENV['ENV'][name]
 
     def del_global_variable(self, name):
         """
@@ -230,7 +271,7 @@ class BaseCase(CaseLogHandel):
         :return:
         """
         self.info_log("删除全局变量:", name)
-        del ENV['Envs'][name]
+        del ENV['ENV'][name]
 
     def json_extract(self, obj, ext):
         """
