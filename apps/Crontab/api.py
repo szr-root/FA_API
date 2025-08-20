@@ -2,6 +2,7 @@
 # @Author : John
 # @Time : 2024/12/23
 # @File : api.py
+import asyncio
 import datetime
 import time
 
@@ -63,16 +64,33 @@ async def init_scheduler():
 
 async def run_test_task(task_id, env_id, tester):
     """执行定时任务"""
-    print("任务执行提交",datetime.datetime.now(), task_id, env_id)
-    # async with transactions.in_transaction():
-    #     await run_task(RunTaskForm(env=env_id, task=task_id, tester=tester))
-    # print("执行了", task_id, env_id)
-
+    print("任务执行提交", datetime.datetime.now(), task_id, env_id)
+    try:
+        print(f"准备执行任务: task_id={task_id}, env_id={env_id}, tester={tester}")
+        async with transactions.in_transaction() as conn:
+            print("开始执行 run_task")
+            # 添加超时控制，比如设置30秒超时
+            try:
+                result = await asyncio.wait_for(
+                    run_task(RunTaskForm(env=env_id, task=task_id, tester=tester)),
+                    timeout=30.0
+                )
+                print("run_task 执行完成，返回结果:", result)
+            except asyncio.TimeoutError:
+                print("run_task 执行超时")
+                raise
+        print("定时任务执行了", task_id, env_id, datetime.datetime.now())
+        return result
+    except Exception as e:
+        error_msg = f"定时任务执行失败: task_id={task_id}, env_id={env_id}, tester={tester}, 错误: {str(e)}"
+        print(error_msg)
+        import traceback
+        traceback.print_exc()
 
 
 
 # 创建测试任务
-@router.post('/crontab', tags=['定时任务'], summary="创建定时任务", status_code=201)
+@router.post('/cronjob', tags=['定时任务'], summary="创建定时任务", status_code=201)
 async def create_crontab(item: CornJobFrom):
     # corn_task_id = str(int(time.time() * 1000))
 
@@ -129,11 +147,22 @@ async def create_crontab(item: CornJobFrom):
 # 获取定时任务列表
 @router.get('/cronjob', tags=['定时任务'], summary="获取定时任务列表")
 async def get_crontab_list(project: int):
-    return await CronJob.filter(project_id=project).all()
-
+    res =  await CronJob.filter(project_id=project).all().prefetch_related('task', 'env')
+    return [{
+        "id": corn.id,
+        "create_time":corn.create_time.astimezone(local_timezone).strftime('%Y-%m-%d %H:%M:%S'),
+        "name": corn.name,
+        "task": corn.task.name,
+        "env": corn.env.name,
+        "run_type": corn.run_type,
+        "interval": corn.interval,
+        "date": corn.date.strftime('%Y-%m-%d %H:%M:%S'),
+        "crontab": corn.crontab,
+        "state": corn.state
+    } for corn in res]
 
 # 暂停/恢复定时任务
-@router.patch('/crontab/{id}', tags=['定时任务'], summary="暂停/恢复定时任务")
+@router.patch('/cronjob/{id}', tags=['定时任务'], summary="暂停/恢复定时任务")
 async def update_crontab(id: str):
     corn = await CronJob.get_or_none(id=id)
     if not corn:
@@ -158,7 +187,7 @@ async def update_crontab(id: str):
 
 
 # 删除定时任务
-@router.delete('/crontab/{id}', tags=['定时任务'], summary="删除定时任务", status_code=204)
+@router.delete('/cronjob/{id}', tags=['定时任务'], summary="删除定时任务", status_code=204)
 async def delete_crontab(id: str):
     corn = await CronJob.get_or_none(id=id)
     if not corn:
@@ -169,7 +198,7 @@ async def delete_crontab(id: str):
 
 
 # 修改定时任务配置
-@router.put('/crontab/{id}', tags=['定时任务'], summary="修改定时任务配置")
+@router.put('/cronjob/{id}', tags=['定时任务'], summary="修改定时任务配置")
 async def update_job(id: str, item: UpdagteCornJobFrom):
     corn = await CronJob.get_or_none(id=id)
     if not corn:

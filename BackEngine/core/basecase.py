@@ -253,7 +253,11 @@ class BaseCase(CaseLogHandel):
         """
         self.info_log(f"设置全局变量{name}:", value)
         # self.info_log(f"{ENV['ENV']['host']}")
-        ENV['ENV'][name] = value
+        ENV[name] = value
+
+    @staticmethod
+    def get_env_variable(name):
+        return ENV['ENV'][name]
 
     def del_env_variable(self, name):
         """

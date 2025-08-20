@@ -178,7 +178,7 @@ class TestRunner:
             self.result.append(result.get_result_info())
         # 断开连接
         db.close_db_connection()
-        return self.result, ENV
+        return self.result[0], ENV
 
     def perform(self, case, result, env):
         c = BaseCase()

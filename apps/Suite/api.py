@@ -53,7 +53,7 @@ async def del_scenes(suite_id: int):
     await suite.delete()
 
 
-@router.patch( '/flows/{suite_id}', summary='修改测试业务流')
+@router.patch('/flows/{suite_id}', summary='修改测试业务流')
 async def update_scenes(suite_id: int, item: UpdateSuiteForm):
     suite = await Suite.get_or_none(id=suite_id)
     if not suite:
@@ -151,12 +151,18 @@ async def run_scenes(item: SuiteRunForm):
         }
     ]
     # return case_datas
-    runner = TestRunner(case_datas, env_config).run()
-    return runner[0]
+    runner, new_env = TestRunner(case_datas, env_config).run()
+    exclude_keys = {'host', 'headers', 'global_func', 'decrypt_py'}
+    env.debug_global_variable = {
+        k: v for k, v in new_env['ENV'].items()
+        if k not in exclude_keys
+    }
+    await env.save()
+    return runner
 
 
 # 向测试业务流中添加测试用例
-@router.post('/flows/cases', summary='向测试业务流中添加测试用例',status_code=201)
+@router.post('/flows/cases', summary='向测试业务流中添加测试用例', status_code=201)
 async def add_icase(item: AddSuiteToCaseForm):
     suite = await Suite.get_or_none(id=item.flow)
     if not suite:

@@ -6,11 +6,13 @@ import json
 import time
 from typing import Optional
 
+import pytz
 from fastapi import APIRouter, HTTPException
 from tortoise.transactions import in_transaction
 
+from common.sendfeishu import feishu_url, feishu_send_message
 from .models import TestTask, TestReport, TestRecord
-from .schemas import AddTaskForm, RunTaskForm, UpdateTaskForm
+from .schemas import AddTaskForm, RunTaskForm, UpdateTaskForm, SendReportForm
 from ..Suite.api import run_scenes
 from ..Suite.models import Suite
 from ..Suite.schemas import SuiteRunForm
@@ -18,7 +20,7 @@ from ..projects.models import Project
 
 router = APIRouter(prefix="/api/TestTask", tags=["测试任务"])
 
-
+local_timezone = pytz.timezone('Asia/Shanghai')
 # 创建测试任务
 @router.post('/tasks', summary='创建测试任务', status_code=201)
 async def create_task(item: AddTaskForm):
@@ -135,7 +137,6 @@ async def del_task(task_id: int):
 # 运行测试任务
 @router.post('/tasks/run', summary='运行测试任务')
 async def run_task(item: RunTaskForm):
-    print(item)
     async with in_transaction():
         try:
             task = await TestTask.get_or_none(id=item.task).prefetch_related('suite')
@@ -178,8 +179,10 @@ async def run_task(item: RunTaskForm):
                 "results": result,
             }
             await TestReport.create(record=record, info=info)
+            result = ['success']
         except Exception as e:
             result = ['error']
+            print(e)
             raise HTTPException(status_code=422, detail="error")
         return result
 
@@ -227,3 +230,27 @@ async def get_recordInfo(record_id: int):
 async def get_report(record_id: int):
     report = await TestReport.get_or_none(record_id=record_id)
     return report
+
+
+# 发送报告到飞书
+@router.post('/send_report', summary='发送报告到飞书')
+async def send_report(item: SendReportForm):
+    # print(item)
+    record_id = int(item.record_id)
+    result = await TestReport.get_or_none(record_id=record_id)
+    record = await TestRecord.get_or_none(id=record_id).prefetch_related('task', 'env')
+    info = {
+        "id": record.pk,
+        "task": record.task.name,
+        "env": record.env.name,
+        "tester": record.tester,
+        "all": record.all,
+        "success": record.success,
+        "fail": record.fail,
+        "error": record.error,
+        "pass_rate": record.pass_rate,
+        "run_time": record.run_time,
+        "status": record.status,
+        "create_time": record.create_time
+    }
+    feishu_send_message(result.info, record_id, info, feishu_url)

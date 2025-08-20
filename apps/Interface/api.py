@@ -197,4 +197,4 @@ async def run_case(item: RunCaseForm):
     }
     await env.save()
 
-    return runner[0]['cases'][0]
+    return runner['cases'][0]
