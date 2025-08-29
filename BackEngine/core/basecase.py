@@ -5,7 +5,7 @@
 
 import re
 import time
-
+import asyncio
 import requests
 # 导入内置的测试工具函数
 from requests.structures import CaseInsensitiveDict
@@ -18,12 +18,11 @@ from BackEngine.core.dbclient import DBClient
 
 import base64
 import json
-
 from Crypto.Cipher import AES
 from Crypto.Util.Padding import unpad
 
 # 定义一个全局变量用来保存测试执行环境的数据
-ENV = {}
+# ENV = {}
 # 创建一个数据库连接对象
 db = DBClient()
 
@@ -47,14 +46,13 @@ db = DBClient()
 class BaseCase(CaseLogHandel):
     """用例执行的基本父类"""
 
-    def __run_script(self, data, env):
+    def __run_script(self, data, env_object):
         """专门执行前后置脚本的函数"""
         # 在前后置脚本的执行环境中内置一些变量
         test = self
-        global_val = env
-        global ENV
-        ENV = env
-        # decrypt_py = ENV.get('decrypt_py','')
+        # global_val = env
+        # global ENV
+        # ENV = env
 
         print = self.print_log
         # 获取用例的前置脚本
@@ -69,18 +67,19 @@ class BaseCase(CaseLogHandel):
         exec(teardown_script)
         yield
 
-    def __setup_script(self, data, env):
+    def __setup_script(self, data, env_object):
         """
         脚本执行前
         :param data:
         :return:
         """
         # 使用脚本执行器函数创建一个生成器对象
-        self.script_hook = self.__run_script(data, env)
+        self.env_object = env_object
+        self.script_hook = self.__run_script(data, env_object)
         # 执行前置脚步（执行生成器中的代码）
         next(self.script_hook)
 
-    def __teardown_script(self, data, response):
+    def __teardown_script(self, response):
         """
         脚本执行后
         :param data:
@@ -92,22 +91,22 @@ class BaseCase(CaseLogHandel):
         # 删除生成器对象
         delattr(self, 'script_hook')
 
-    def __handler_requests_data(self, data):
+    def __handler_requests_data(self, data, env):
         """处理请求数据的方法"""
-        global ENV
+        # global ENV
         request_data = {}
         # 1、处理请求的url
         request_data["method"] = data['interface']['method']
         url = data['interface']['url']
         if not url.startswith('http'):
             # 和base_url进行拼接
-            url = ENV.get('ENV').get('host') + url
+            url = env.get('ENV').get('host') + url
         request_data["url"] = url
         self.url = url
         self.method = data['interface']['method']
         # 2、处理请求的headers
         # 获取全局请求头
-        headers: dict = ENV.get('ENV').get('headers')
+        headers: dict = env.get('ENV').get('headers')
         # 将全局请求头和当前用例中的请求头进行合并
         headers.update(data['headers'])
         request_data['headers'] = headers
@@ -134,11 +133,11 @@ class BaseCase(CaseLogHandel):
             request_data['json'] = request.get('json')
             self.request_body = request.get('json')
         # 替换用例中的变量
-        request_data = self.replace_data(request_data)
+        request_data = self.replace_data(request_data, env)
         self.info_log("===发送【 ", request_data["method"].upper(), " 】请求，请求地址是:", request_data["url"])
         return request_data
 
-    def replace_data(self, data):
+    def replace_data(self, data, env):
         """替换用例中的变量"""
         # 数据替换的规则
         pattern = r'\${{(.+?)}}'
@@ -150,7 +149,7 @@ class BaseCase(CaseLogHandel):
             # 获取匹配到的内容中的变量
             key = match.group(1)
             # 获取全局变量中的值
-            value = ENV.get('ENV').get(key)
+            value = env.get('ENV').get(key)
             self.info_log("开始替换变量, 将 ", key, " 替换成 ", value)
             # 将匹配到的内容中的变量替换为全局变量中的值
             data = data.replace(match.group(), str(value))
@@ -170,15 +169,14 @@ class BaseCase(CaseLogHandel):
         else:
             return obj
 
-    def __send_request(self, data):
+    def __send_request(self, data, env):
         """
         发送请求的方法
         :param data:
         :return:
         """
         # 处理用例的请求数据(替换请求参数中的变量，将数据转换为requests发送请求所需要的格式)
-        request_data = self.__handler_requests_data(data)
-        # self.info_log(request_data)
+        request_data = self.__handler_requests_data(data, env)
         start_time = time.time()
         # 发送请求
         response = requests.request(**request_data)
@@ -186,7 +184,9 @@ class BaseCase(CaseLogHandel):
         self.response_header = self.convert_to_dict(response.headers)
         self.response_body = response.text
         # 解密
-        decrypt_py = ENV.get('decrypt_py')
+        # decrypt_py = ENV.get('decrypt_py')
+        decrypt_py = env.get('decrypt_py')
+
         if decrypt_py is not None and response.status_code == 200:
             decrypt_py = decrypt_py.strip()
             if decrypt_py != '':
@@ -204,19 +204,11 @@ class BaseCase(CaseLogHandel):
                 # self.requests_body = response.request.body.decode('utf-8')
         self.run_time = str(round(time.time() - start_time, 2)) + 's'
         self.status_code = response.status_code
-        # self.info_log('请求地址', response.url)
-        # self.info_log('请求方式', response.request.method)
-        # self.info_log('请求头', response.request.headers)
-        # self.info_log('请求体', response.request.body)
-        # self.info_log('响应头', response.headers)
-        # self.info_log('响应体', response.text)
-        # self.info_log(response.text)
-        # 返回响应对象
 
-        # return response
+        # 返回响应对象
         return self.response_body
 
-    def perform(self, data, env):
+    def perform(self, data, env, env_object):
         """
         执行单条用例的入口方法
         :param data:
@@ -226,13 +218,29 @@ class BaseCase(CaseLogHandel):
         self.data = data
         self.info_log('===开始执行用例：', self.title, '===')
         # 执行前置脚本
-        self.__setup_script(data, env)
+        self.__setup_script(data, env, env_object)
         # 发送请求
-        response = self.__send_request(data)
+        response = self.__send_request(data, env)
         # 执行后置脚本
         self.__teardown_script(data, response)
-        # global ENV
-        return ENV
+
+
+    def async_io_operation(self):
+        # 同步执行异步保存操作
+        try:
+            # 尝试获取当前事件循环
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                # 如果事件循环正在运行，创建任务
+                task = loop.create_task(self.env_object.save())
+                # 等待任务完成
+                loop.run_until_complete(task)
+            else:
+                # 如果没有运行中的事件循环，直接运行
+                loop.run_until_complete(self.env_object.save())
+        except RuntimeError:
+            # 如果没有事件循环，创建新的
+            asyncio.run(self.env_object.save())
 
     def save_env_variable(self, name, value):
         """
@@ -242,8 +250,9 @@ class BaseCase(CaseLogHandel):
         :return:
         """
         self.info_log(f"设置局部变量{name}:", value)
-        # db.local.execute(f"UPDATE api_fastapi.Env SET global_variable= '{value}' WHERE name='{name}'")
-        ENV['ENV'][name] = value
+        self.env_object.debug_global_variable[name] = value
+        self.async_io_operation()
+
 
     def save_global_variable(self, name, value):
         """
@@ -253,11 +262,28 @@ class BaseCase(CaseLogHandel):
         """
         self.info_log(f"设置全局变量{name}:", value)
         # self.info_log(f"{ENV['ENV']['host']}")
-        ENV[name] = value
+        self.env_object.global_variable[name] = value
+        self.async_io_operation()
+        # 同步执行异步保存操作
+        #
+        # try:
+        #     # 尝试获取当前事件循环
+        #     loop = asyncio.get_event_loop()
+        #     if loop.is_running():
+        #         # 如果事件循环正在运行，创建任务
+        #         task = loop.create_task(self.env_object.save())
+        #         # 等待任务完成
+        #         loop.run_until_complete(task)
+        #     else:
+        #         # 如果没有运行中的事件循环，直接运行
+        #         loop.run_until_complete(self.env_object.save())
+        # except RuntimeError:
+        #     # 如果没有事件循环，创建新的
+        #     asyncio.run(self.env_object.save())
 
-    @staticmethod
-    def get_env_variable(name):
-        return ENV['ENV'][name]
+
+    def get_env_variable(self,name):
+        return self.env_object.debug_global_variable.get(name)
 
     def del_env_variable(self, name):
         """
@@ -266,7 +292,9 @@ class BaseCase(CaseLogHandel):
         :return:
         """
         self.info_log("删除环境变量:", name)
-        del ENV['ENV'][name]
+        del self.env_object.debug_global_variable[name]
+        self.async_io_operation()
+        pass
 
     def del_global_variable(self, name):
         """
@@ -275,8 +303,9 @@ class BaseCase(CaseLogHandel):
         :return:
         """
         self.info_log("删除全局变量:", name)
-        del ENV['ENV'][name]
-
+        del self.env_object.global_variable[name]
+        self.async_io_operation()
+        pass
     def json_extract(self, obj, ext):
         """
         提取json数据的方法，返回提取到的数据值
@@ -357,6 +386,7 @@ class BaseCase(CaseLogHandel):
 
 
 if __name__ == '__main__':
+    ENV = {}
     testcase = {
         "title": "登录成功用例",
         "interface":

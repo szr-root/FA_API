@@ -3,7 +3,7 @@
 # @Time : 2024/11/01
 # @File : runner.py
 
-from BackEngine.core.basecase import db, ENV, BaseCase, my_functools
+from BackEngine.core.basecase import db, BaseCase, my_functools
 from BackEngine.core.dbclient import DBClient
 
 
@@ -102,7 +102,7 @@ class TestResult:
 
 
 class TestRunner:
-    def __init__(self, cases, env):
+    def __init__(self, cases, env, env_object):
         """
 
         :param cases: 要执行的测试用例
@@ -140,6 +140,7 @@ class TestRunner:
         self.cases = cases
         self.env_data = env
         self.result = []
+        self.env_object = env_object
 
     def run(self):
         db_config = self.env_data.pop('DB')
@@ -155,9 +156,9 @@ class TestRunner:
             }]
         # 初始数据库连接
         db.init_connect(db_config)
-
-        ENV = {**self.env_data.get('ENV')}
-        # ENV.update(self.env_data)
+        ENV = {}
+        # ENV = {**self.env_data.get('ENV')}
+        # ENV.update(self.env_data.get('ENV'))
         # self.decrypt_py = self.env_data.pop('decrypt_py')
         # 通过exec将字符串中的python变量加载到functools这个模块的命名空间中
         exec(self.env_data["global_func"], my_functools.__dict__)
@@ -173,31 +174,27 @@ class TestRunner:
             result = TestResult(name=name, all=len(items["Cases"]))
             # 遍历测试集执行用例
             for testcase in items["Cases"]:
-                env = self.perform(testcase, result, ENV)
+                self.perform(testcase, result, ENV)
             # 获取每条记录器的结果,保存起来
             self.result.append(result.get_result_info())
         # 断开连接
         db.close_db_connection()
-        return self.result[0], ENV
+        return self.result[0]
 
     def perform(self, case, result, env):
         c = BaseCase()
-        # run_time = 0
         try:
-            new_ENV = c.perform(case, env)
+            c.perform(case, env, self.env_object)
         except AssertionError as e:
             # print('用例断言失败')
             result.add_fail(c)
-            # result.run_time = run_time
         except Exception as e:
             # print('用例执行错误')
             result.add_error(c, e)
-            # result.run_time = run_time
         else:
             # print('用例执行通过')
             result.add_success(c)
-            return new_ENV
-            # result.run_time = run_time
+            # return new_ENV
 
 
 if __name__ == '__main__':

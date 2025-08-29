@@ -127,6 +127,8 @@ async def run_scenes(item: SuiteRunForm):
         "global_func": env.global_func,
         "decrypt_py": env.decrypt_py
     }
+
+    # headers = env_config['ENV']['headers'].copy()
     cases = await SuiteToCase.filter(suite_id=suite_id).prefetch_related(
         Prefetch('suite_case', queryset=InterFaceCase.all().select_related('interface'))
     ).order_by('sort')
@@ -151,13 +153,8 @@ async def run_scenes(item: SuiteRunForm):
         }
     ]
     # return case_datas
-    runner, new_env = TestRunner(case_datas, env_config).run()
-    exclude_keys = {'host', 'headers', 'global_func', 'decrypt_py'}
-    env.debug_global_variable = {
-        k: v for k, v in new_env['ENV'].items()
-        if k not in exclude_keys
-    }
-    await env.save()
+    runner = TestRunner(case_datas, env_config,env).run()
+
     return runner
 
 

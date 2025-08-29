@@ -437,17 +437,3 @@ def feishu_send_message(result, id, info,
 
 if __name__ == '__main__':
     pass
-    # tenant_access_token = get_tenant_access_key()
-
-    # user_token = 'u-cqIm1x7KhcLUt0KsyPzcyYk03keQ4kNbOMw0lkyE00ma'
-    # 个人测试
-    # url = "https://open.feishu.cn/open-apis/bot/v2/hook/548cccf2-2fa1-4c8e-a31f-f135b8e562c7"
-    # 测试组群聊
-    # url = "https://open.feishu.cn/open-apis/bot/v2/hook/46654635-7e10-4235-8ccb-5e945eca2177"
-
-    # 大群群聊
-    # url = "https://open.feishu.cn/open-apis/bot/v2/hook/cbc3f551-2292-4e04-a1bd-8ae608176263"
-
-    # done, doing, wait = get_messages(tenant_access_token)
-
-    # new_feishu_send_massage(result)

@@ -178,7 +178,7 @@ async def run_case(item: RunCaseForm):
         "global_func": env.global_func,
         "decrypt_py": env.decrypt_py
     }
-
+    # headers = env_config['ENV']['headers'].copy()
     # 组装测试数据
     case_datas = [
         {
@@ -186,15 +186,16 @@ async def run_case(item: RunCaseForm):
             "Cases": [cases]
         }
     ]
-    runner, new_env = TestRunner(case_datas, env_config).run()
-    # print(type(new_env))
+    runner = TestRunner(case_datas, env_config, env).run()
 
-    # 创建一个不包含指定键的新字典
-    exclude_keys = {'host', 'headers', 'global_func', 'decrypt_py'}
-    env.debug_global_variable = {
-        k: v for k, v in new_env['ENV'].items()
-        if k not in exclude_keys
-    }
-    await env.save()
-
+    # env.headers = headers
+    # # 创建一个不包含指定键的新字典
+    # exclude_keys = {'host', 'headers', 'global_func', 'decrypt_py','ENV'}
+    # # env.debug_global_variable = {}
+    # if new_env:
+    #     env.debug_global_variable = {
+    #         k: v for k, v in new_env.items()
+    #         if k not in exclude_keys
+    #     }
+    # await env.save()
     return runner['cases'][0]
