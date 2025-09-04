@@ -67,7 +67,7 @@ class BaseCase(CaseLogHandel):
         exec(teardown_script)
         yield
 
-    def __setup_script(self, data, env_object):
+    def __setup_script(self, data, env, env_object):
         """
         脚本执行前
         :param data:
@@ -222,8 +222,7 @@ class BaseCase(CaseLogHandel):
         # 发送请求
         response = self.__send_request(data, env)
         # 执行后置脚本
-        self.__teardown_script(data, response)
-
+        self.__teardown_script(response)
 
     def async_io_operation(self):
         # 同步执行异步保存操作
@@ -253,7 +252,6 @@ class BaseCase(CaseLogHandel):
         self.env_object.debug_global_variable[name] = value
         self.async_io_operation()
 
-
     def save_global_variable(self, name, value):
         """
         保存测试运行环境的变量
@@ -281,8 +279,7 @@ class BaseCase(CaseLogHandel):
         #     # 如果没有事件循环，创建新的
         #     asyncio.run(self.env_object.save())
 
-
-    def get_env_variable(self,name):
+    def get_env_variable(self, name):
         return self.env_object.debug_global_variable.get(name)
 
     def del_env_variable(self, name):
@@ -306,6 +303,7 @@ class BaseCase(CaseLogHandel):
         del self.env_object.global_variable[name]
         self.async_io_operation()
         pass
+
     def json_extract(self, obj, ext):
         """
         提取json数据的方法，返回提取到的数据值
