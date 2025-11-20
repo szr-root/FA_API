@@ -48,6 +48,9 @@ origins = [
     'http://127.0.0.1:8080',
     'http://localhost:8080',
     'http://localhost:5173',
+    'http://localhost:5188',
+    'http://localhost:5175',
+    '*'
 ]
 
 app.add_middleware(
@@ -65,7 +68,7 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 async def custom_swagger_ui_html():
     return get_swagger_ui_html(
         openapi_url="/openapi.json",
-        title="xx",
+        title="new swagger",
         # oauth2_redirect_url=app.swagger_ui_oauth2_redirect_url,
         swagger_js_url='/static/swagger/swagger-ui-bundle.js',
         swagger_css_url='/static/swagger/swagger-ui.css',

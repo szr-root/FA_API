@@ -189,7 +189,7 @@ class BaseCase(CaseLogHandel):
 
         if decrypt_py is not None and response.status_code == 200:
             decrypt_py = decrypt_py.strip()
-            if decrypt_py != '':
+            if decrypt_py != '[]':
                 self.info_log("*****执行解密脚本*****")
                 text = response.text
                 # 定义一个命名空间字典用于存储 exec 执行后的变量
