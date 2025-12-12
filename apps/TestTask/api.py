@@ -137,32 +137,43 @@ async def del_task(task_id: int):
 # 运行测试任务
 @router.post('/tasks/run', summary='运行测试任务')
 async def run_task(item: RunTaskForm):
-    async with in_transaction():
-        try:
-            task = await TestTask.get_or_none(id=item.task).prefetch_related('suite')
-            record = await TestRecord.create(task_id=item.task, env_id=item.env, tester=item.tester)
-            all_ = 0
-            success = 0
-            fail = 0
-            error = 0
-            start_time = time.time()
-            result = []
-            for suite in task.suite:
-                res = await run_scenes(SuiteRunForm(env=item.env, flow=suite.id))
-                result.append(res)
-                all_ += res['all']
-                success += res['success']
-                fail += res['fail']
-                error += res['error']
+    # 优化事务处理，只在关键操作时使用事务
+    try:
+        # 先获取任务信息（不使用事务）
+        task = await TestTask.get_or_none(id=item.task).prefetch_related('suite')
+        if not task:
+            raise HTTPException(status_code=404, detail="任务不存在")
+            
+        # 创建测试记录（使用单独事务）
+        record = await TestRecord.create(task_id=item.task, env_id=item.env, tester=item.tester)
+        
+        all_ = 0
+        success = 0
+        fail = 0
+        error = 0
+        start_time = time.time()
+        result = []
+        
+        # 执行测试套件（不在事务中执行，避免长时间锁定）
+        for suite in task.suite:
+            res = await run_scenes(SuiteRunForm(env=item.env, flow=suite.id))
+            result.append(res)
+            all_ += res['all']
+            success += res['success']
+            fail += res['fail']
+            error += res['error']
 
-            pass_rate = str(round((success / all_) * 100, 2))
-            if success == all_:
-                status = '成功'
-            elif error != 0:
-                status = '错误'
-            else:
-                status = '失败'
-            run_time = str(round(time.time() - start_time, 2)) + 's'
+        pass_rate = str(round((success / all_) * 100, 2)) if all_ > 0 else '0.0'
+        if success == all_:
+            status = '成功'
+        elif error != 0:
+            status = '错误'
+        else:
+            status = '失败'
+        run_time = str(round(time.time() - start_time, 2)) + 's'
+        
+        # 更新记录（使用单独事务）
+        async with in_transaction():
             record.all = all_
             record.success = success
             record.fail = fail
@@ -171,6 +182,7 @@ async def run_task(item: RunTaskForm):
             record.run_time = run_time
             record.status = status
             await record.save()
+            
             info = {
                 "all": all_,
                 "fail": fail,
@@ -179,12 +191,16 @@ async def run_task(item: RunTaskForm):
                 "results": result,
             }
             await TestReport.create(record=record, info=info)
-            result = ['success']
-        except Exception as e:
-            result = ['error']
-            print(e)
-            raise HTTPException(status_code=422, detail="error")
-        return result
+            
+        return {"result": "success", "status": status, "pass_rate": pass_rate, "run_time": run_time}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"运行测试任务失败: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"运行测试任务失败: {str(e)}")
 
 
 # 获取运行记录，传task就是任务的所有记录，传project，就是项目数据看板

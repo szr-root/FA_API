@@ -67,18 +67,18 @@ async def run_test_task(task_id, env_id, tester):
     print("任务执行提交", datetime.datetime.now(), task_id, env_id)
     try:
         print(f"准备执行任务: task_id={task_id}, env_id={env_id}, tester={tester}")
-        async with transactions.in_transaction() as conn:
-            print("开始执行 run_task")
-            # 添加超时控制，比如设置30秒超时
-            try:
-                result = await asyncio.wait_for(
-                    run_task(RunTaskForm(env=env_id, task=task_id, tester=tester)),
-                    timeout=30.0
-                )
-                print("run_task 执行完成，返回结果:", result)
-            except asyncio.TimeoutError:
-                print("run_task 执行超时")
-                raise
+        # 移除外层事务，因为run_task内部已经有事务处理了
+        print("开始执行 run_task")
+        # 增加超时时间到120秒，给批量测试任务足够时间
+        try:
+            result = await asyncio.wait_for(
+                run_task(RunTaskForm(env=env_id, task=task_id, tester=tester)),
+                timeout=120.0  # 增加到2分钟
+            )
+            print("run_task 执行完成，返回结果:", result)
+        except asyncio.TimeoutError:
+            print("run_task 执行超时 (120秒)")
+            raise
         print("定时任务执行了", task_id, env_id, datetime.datetime.now())
         return result
     except Exception as e:
@@ -86,6 +86,8 @@ async def run_test_task(task_id, env_id, tester):
         print(error_msg)
         import traceback
         traceback.print_exc()
+        # 重新抛出异常，让调用方知道任务失败了
+        raise
 
 
 
@@ -125,7 +127,13 @@ async def create_crontab(item: CornJobFrom):
 
             corn = await CronJob.create(name=item.name, project_id=item.project, task_id=item.task,
                                         env_id=item.env, run_type=item.run_type, interval=item.interval,
-                                        date=item.date, crontab=item.crontab.dict(), state=item.state)
+                                        date=item.date, crontab=item.crontab.dict() if item.crontab else None, state=item.state)
+            
+            # 确保状态字段有值，默认为True（启用）
+            if corn.state is None:
+                corn.state = True
+                await corn.save()
+            
             job = scheduler.add_job(
                 func=run_test_task,
                 trigger=trigger,
@@ -133,12 +141,19 @@ async def create_crontab(item: CornJobFrom):
                 name=item.name,
                 kwargs={"task_id": item.task, "env_id": item.env, "tester": item.tester}
             )
+            print(f"定时任务创建成功: ID={corn.id}, 名称={item.name}")
         except Exception as e:
             # 事务回滚
             await cron_tran.rollback()
-            # 取消定时任务
-            scheduler.remove_job(corn.id)
-            raise HTTPException(status_code=422, detail=f'创建失败{e}')
+            # 如果任务已添加，尝试移除
+            try:
+                if 'corn' in locals() and scheduler.get_job(str(corn.id)):
+                    scheduler.remove_job(str(corn.id))
+            except:
+                pass
+            error_msg = f'创建失败: {str(e)}'
+            print(f"定时任务创建失败: {error_msg}")
+            raise HTTPException(status_code=422, detail=error_msg)
         else:
             await cron_tran.commit()
             return corn
@@ -167,23 +182,57 @@ async def update_crontab(id: str):
     corn = await CronJob.get_or_none(id=id)
     if not corn:
         raise HTTPException(status_code=422, detail='定时任务不存在')
-    if scheduler.get_job(id):
-        scheduler.pause_job(id)
-    async with transactions.in_transaction() as cron_tran:
-        try:
-            corn.state = not corn.state
-            # 判断是启用还是暂停
-            if corn.state:
+    
+    # 确保状态字段有默认值
+    if corn.state is None:
+        corn.state = True
+    
+    # 先切换状态
+    new_state = not corn.state
+    
+    try:
+        # 检查调度器中是否存在该任务
+        job_exists = scheduler.get_job(id) is not None
+        
+        if job_exists:
+            # 根据新状态操作任务
+            if new_state:  # 启用任务
                 scheduler.resume_job(id)
-            else:
+                print(f"任务 {id} 已恢复")
+            else:  # 暂停任务
                 scheduler.pause_job(id)
-            await corn.save()
-        except Exception as e:
-            await cron_tran.rollback()
-            raise HTTPException(status_code=422, detail='操作失败')
+                print(f"任务 {id} 已暂停")
         else:
-            await cron_tran.commit()
-        return corn
+            print(f"调度器中未找到任务 {id}")
+            # 如果调度器中不存在但数据库中有记录，可能是调度器重启过
+            # 这里可以选择重新添加任务或者只更新数据库状态
+            if new_state:
+                # 尝试重新添加任务（可选）
+                print(f"尝试重新添加任务 {id} 到调度器")
+                # 这里可以添加重新创建任务的逻辑
+        
+        # 更新数据库状态（使用事务）
+        async with transactions.in_transaction() as cron_tran:
+            try:
+                corn.state = new_state
+                await corn.save()
+                await cron_tran.commit()
+                print(f"数据库状态更新成功: 任务 {id} 状态改为 {new_state}")
+            except Exception as e:
+                await cron_tran.rollback()
+                print(f"数据库状态更新失败: {str(e)}")
+                raise HTTPException(status_code=422, detail=f'数据库操作失败: {str(e)}')
+        
+        return {"msg": "操作成功", "state": new_state, "task_id": id}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        error_msg = f"操作失败: {str(e)}"
+        print(error_msg)
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=422, detail=f'操作失败: {str(e)}')
 
 
 # 删除定时任务
@@ -225,3 +274,68 @@ async def update_job(id: str, item: UpdagteCornJobFrom):
         raise HTTPException(status_code=422, detail=f'修改失败:{e}')
 
     return corn
+
+
+# Redis连接检查
+@router.get('/redis/status', tags=['系统状态'], summary="检查Redis连接状态")
+async def check_redis_status():
+    """检查Redis连接状态""" 
+    try:
+        import redis
+        r = redis.Redis(
+            host=REDIS_CONFIG['host'],
+            port=REDIS_CONFIG['port'],
+            db=REDIS_CONFIG['db'],
+            password=REDIS_CONFIG['password'] if REDIS_CONFIG['password'] else None,
+            decode_responses=True,
+            socket_connect_timeout=3,
+            socket_timeout=3
+        )
+        
+        # 测试连接
+        r.ping()
+        
+        # 获取基本信息
+        info = r.info()
+        
+        return {
+            "status": "connected",
+            "host": REDIS_CONFIG['host'],
+            "port": REDIS_CONFIG['port'],
+            "db": REDIS_CONFIG['db'],
+            "redis_version": info.get('redis_version', 'unknown'),
+            "connected_clients": info.get('connected_clients', 0),
+            "used_memory_human": info.get('used_memory_human', 'unknown'),
+            "uptime_in_days": info.get('uptime_in_days', 0)
+        }
+        
+    except redis.exceptions.ConnectionError as e:
+        return {
+            "status": "disconnected",
+            "host": REDIS_CONFIG['host'],
+            "port": REDIS_CONFIG['port'],
+            "db": REDIS_CONFIG['db'],
+            "error": str(e),
+            "suggestion": "请检查Redis服务器是否启动，地址和端口是否正确"
+        }
+        
+    except redis.exceptions.AuthenticationError as e:
+        return {
+            "status": "authentication_failed",
+            "host": REDIS_CONFIG['host'],
+            "port": REDIS_CONFIG['port'],
+            "db": REDIS_CONFIG['db'],
+            "error": str(e),
+            "suggestion": "请检查Redis密码是否正确"
+        }
+        
+    except Exception as e:
+        return {
+            "status": "error",
+            "host": REDIS_CONFIG['host'],
+            "port": REDIS_CONFIG['port'],
+            "db": REDIS_CONFIG['db'],
+            "error": str(e),
+            "error_type": type(e).__name__,
+            "suggestion": "请检查Redis配置和网络连接"
+        }

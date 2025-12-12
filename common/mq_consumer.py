@@ -11,9 +11,18 @@ from common import db_client
 
 class MQConsumer:
     def __init__(self):
-        # 连接到rabbitmq服务器
+        # 连接到rabbitmq服务器，使用用户名密码验证
+        credentials = pika.PlainCredentials(
+            username=MQ_CONFIG.get('username', 'guest'),
+            password=MQ_CONFIG.get('password', 'guest')
+        )
         self.connection = pika.BlockingConnection(
-            pika.ConnectionParameters(host=MQ_CONFIG.get('host'), port=MQ_CONFIG.get('port'))
+            pika.ConnectionParameters(
+                host=MQ_CONFIG.get('host'), 
+                port=MQ_CONFIG.get('port'),
+                virtual_host=MQ_CONFIG.get('virtual_host', '/'),
+                credentials=credentials
+            )
         )
         self.channel = self.connection.channel()
 

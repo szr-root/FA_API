@@ -230,10 +230,15 @@ class BaseCase(CaseLogHandel):
             # 尝试获取当前事件循环
             loop = asyncio.get_event_loop()
             if loop.is_running():
-                # 如果事件循环正在运行，创建任务
-                task = loop.create_task(self.env_object.save())
-                # 等待任务完成
-                loop.run_until_complete(task)
+                # 如果事件循环正在运行，使用asyncio.create_task()而不是run_until_complete
+                # 在运行的事件循环中，我们不能使用run_until_complete
+                import threading
+                if threading.current_thread() is threading.main_thread():
+                    # 在主线程中，可以创建任务但不能等待
+                    loop.create_task(self.env_object.save())
+                else:
+                    # 在非主线程中，需要新的处理方式
+                    asyncio.run_coroutine_threadsafe(self.env_object.save(), loop)
             else:
                 # 如果没有运行中的事件循环，直接运行
                 loop.run_until_complete(self.env_object.save())

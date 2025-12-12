@@ -71,16 +71,20 @@ TOKEN_TIMEOUT = 60 * 60 * 24 * 7
 MQ_CONFIG = {
     'host': os.getenv('MQ_HOST'),
     'port': os.getenv('MQ_PORT'),
-    'queue': 'web_test_queue',
+    'queue': 'queue',
+    'username': os.getenv('MQ_USERNAME', 'guest'),  # 默认用户名
+    'password': os.getenv('MQ_PASSWORD', 'guest'),  # 默认密码
+    'virtual_host': os.getenv('MQ_VHOST', '/'),     # 虚拟主机，默认为/
 }
 
 # ==========================Redis配置 ==========================
 REDIS_CONFIG = {
-    "host": "localhost",
-    "port": 6379,
-    "db": 14,
-    "password": "songzhaoruizx"
+    "host": os.getenv('REDIS_HOST', '192.168.50.129'),
+    "port": int(os.getenv('REDIS_PORT', 6379)),
+    "db": int(os.getenv('REDIS_DB', 14)),
+    "password": os.getenv('REDIS_PASSWORD', 'ufo123')
 }
+
 
 # ==========================腾讯存储配置 ==========================
 TENCENT_CONFIG={
