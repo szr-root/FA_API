@@ -13,6 +13,7 @@ from tortoise.transactions import in_transaction
 from common.sendfeishu import feishu_url, feishu_send_message
 from .models import TestTask, TestReport, TestRecord
 from .schemas import AddTaskForm, RunTaskForm, UpdateTaskForm, SendReportForm
+from .task_manager import run_task_async, get_task_status, get_all_running_tasks
 from ..Suite.api import run_scenes
 from ..Suite.models import Suite
 from ..Suite.schemas import SuiteRunForm
@@ -44,32 +45,35 @@ async def create_task(item: AddTaskForm):
 # 查询所有测试任务
 @router.get('/tasks', summary='查询所有测试任务')
 async def get_tasks(project: int):
-    tasks = await TestTask.filter(project_id=project).prefetch_related('suite')
-    return [{"id": task.pk, "name": task.name, "flow": [flow.id for flow in task.suite]} for task in tasks]
+    tasks = await TestTask.filter(project_id=project)
+    data = []
+    for task in tasks:
+        flows = await task.suite.all()
+        data.append({"id": task.pk, "name": task.name, "flow": [flow.id for flow in flows]})
+    return data
 
 
 # 获取单个任务详情
 @router.get('/tasks/{task_id}', summary='获取单个任务详情')
 async def get_task(task_id: int):
-    task = await TestTask.get_or_none(id=task_id).prefetch_related('suite')
+    task = await TestTask.get_or_none(id=task_id)
     if not task:
         raise HTTPException(status_code=422, detail="任务不存在")
+    flows = await task.suite.all()
     data = {"id": task.pk, "name": task.name,
-            "flow": [{
-                "id": flow.id, "name": flow.name
-            } for flow in task.suite]}
+            "flow": [{"id": flow.id, "name": flow.name} for flow in flows]}
     return data
 
 
 # 向测试任务中添加测试套件
 @router.patch('/tasks/{task_id}', summary='向测试任务中添加测试套件')
 async def add_icase(item: UpdateTaskForm):
-    task = await TestTask.get_or_none(id=item.id).prefetch_related('suite')
+    task = await TestTask.get_or_none(id=item.id)
     # 更新任务的基本信息
     task.name = item.name
 
     # 获取当前关联的套件ID集合
-    current_suite_ids = {suite.id for suite in task.suite}
+    current_suite_ids = {suite.id for suite in await task.suite.all()}
     new_suite_ids = set(item.flow)
 
     # 计算需要删除和添加的套件ID
@@ -134,73 +138,100 @@ async def del_task(task_id: int):
     return {"msg": "删除成功"}
 
 
-# 运行测试任务
-@router.post('/tasks/run', summary='运行测试任务')
+# 运行测试任务（后台异步执行）
+@router.post('/tasks/run', summary='运行测试任务（后台异步）')
 async def run_task(item: RunTaskForm):
-    # 优化事务处理，只在关键操作时使用事务
+    """
+    提交测试任务到后台执行，立即返回任务ID用于状态查询
+    解决原同步执行导致的卡死问题
+    """
     try:
-        # 先获取任务信息（不使用事务）
-        task = await TestTask.get_or_none(id=item.task).prefetch_related('suite')
+        # 验证任务存在
+        task = await TestTask.get_or_none(id=item.task)
         if not task:
             raise HTTPException(status_code=404, detail="任务不存在")
-            
-        # 创建测试记录（使用单独事务）
-        record = await TestRecord.create(task_id=item.task, env_id=item.env, tester=item.tester)
         
-        all_ = 0
-        success = 0
-        fail = 0
-        error = 0
-        start_time = time.time()
-        result = []
+        # 使用后台任务管理器异步执行任务
+        task_uuid = await run_task_async(item.task, item.env, item.tester)
         
-        # 执行测试套件（不在事务中执行，避免长时间锁定）
-        for suite in task.suite:
-            res = await run_scenes(SuiteRunForm(env=item.env, flow=suite.id))
-            result.append(res)
-            all_ += res['all']
-            success += res['success']
-            fail += res['fail']
-            error += res['error']
-
-        pass_rate = str(round((success / all_) * 100, 2)) if all_ > 0 else '0.0'
-        if success == all_:
-            status = '成功'
-        elif error != 0:
-            status = '错误'
-        else:
-            status = '失败'
-        run_time = str(round(time.time() - start_time, 2)) + 's'
-        
-        # 更新记录（使用单独事务）
-        async with in_transaction():
-            record.all = all_
-            record.success = success
-            record.fail = fail
-            record.error = error
-            record.pass_rate = pass_rate
-            record.run_time = run_time
-            record.status = status
-            await record.save()
-            
-            info = {
-                "all": all_,
-                "fail": fail,
-                "error": error,
-                "success": success,
-                "results": result,
-            }
-            await TestReport.create(record=record, info=info)
-            
-        return {"result": "success", "status": status, "pass_rate": pass_rate, "run_time": run_time}
+        return {
+            "result": "success", 
+            "task_uuid": task_uuid,
+            "message": "任务已提交到后台执行，请使用任务ID查询执行状态",
+            "query_url": f"/api/TestTask/tasks/status/{task_uuid}"
+        }
         
     except HTTPException:
         raise
     except Exception as e:
-        print(f"运行测试任务失败: {str(e)}")
+        print(f"提交测试任务失败: {str(e)}")
         import traceback
         traceback.print_exc()
-        raise HTTPException(status_code=500, detail=f"运行测试任务失败: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"提交测试任务失败: {str(e)}")
+
+
+# 查询任务执行状态
+@router.get('/tasks/status/{task_uuid}', summary='查询测试任务执行状态')
+async def get_task_status(task_uuid: str):
+    """查询后台任务的执行状态和进度"""
+    try:
+        status_info = get_task_status(task_uuid)
+        
+        if not status_info:
+            raise HTTPException(status_code=404, detail="任务不存在或已过期")
+        
+        return {
+            "result": "success",
+            "task_uuid": task_uuid,
+            "status": status_info["status"],
+            "progress": status_info["progress"],
+            "created_at": status_info["created_at"].isoformat() if status_info["created_at"] else None,
+            "started_at": status_info["started_at"].isoformat() if status_info["started_at"] else None,
+            "completed_at": status_info["completed_at"].isoformat() if status_info["completed_at"] else None,
+            "result": status_info["result"],
+            "error": status_info["error"],
+            "record_id": status_info["record_id"]
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"查询任务状态失败: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"查询任务状态失败: {str(e)}")
+
+
+# 获取所有运行中的任务
+@router.get('/tasks/running', summary='获取所有运行中的任务')
+async def get_running_tasks():
+    """获取当前所有正在运行的测试任务"""
+    try:
+        running_tasks = get_all_running_tasks()
+        
+        return {
+            "result": "success",
+            "count": len(running_tasks),
+            "tasks": [
+                {
+                    "task_uuid": task_uuid,
+                    "task_id": task_info["task_id"],
+                    "tester": task_info["tester"],
+                    "status": task_info["status"],
+                    "progress": task_info["progress"],
+                    "created_at": task_info["created_at"].isoformat() if task_info["created_at"] else None,
+                    "started_at": task_info["started_at"].isoformat() if task_info["started_at"] else None
+                }
+                for task_uuid, task_info in running_tasks.items()
+            ]
+        }
+        
+    except Exception as e:
+        print(f"获取运行中任务失败: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"获取运行中任务失败: {str(e)}")
+
 
 
 # 获取运行记录，传task就是任务的所有记录，传project，就是项目数据看板

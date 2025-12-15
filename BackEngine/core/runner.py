@@ -143,6 +143,10 @@ class TestRunner:
         self.env_object = env_object
 
     def run(self):
+        """
+        执行测试用例，优化数据库连接管理
+        避免长时间占用连接资源
+        """
         db_config = self.env_data.pop('DB')
         if db_config == '':
             db_config = [{
@@ -154,32 +158,51 @@ class TestRunner:
                            "password": "songzhaoruizx"
                            }
             }]
+        
         # 初始数据库连接
         db.init_connect(db_config)
-        ENV = {}
-        # ENV = {**self.env_data.get('ENV')}
-        # ENV.update(self.env_data.get('ENV'))
-        # self.decrypt_py = self.env_data.pop('decrypt_py')
-        # 通过exec将字符串中的python变量加载到functools这个模块的命名空间中
-        exec(self.env_data["global_func"], my_functools.__dict__)
+        
+        try:
+            ENV = {}
+            # 通过exec将字符串中的python变量加载到functools这个模块的命名空间中
+            exec(self.env_data["global_func"], my_functools.__dict__)
 
-        # 遍历所有测试用例
-        for items in self.cases:
-            ENV.clear()
-            ENV.update(self.env_data)
-            name = items["name"]  # 业务流名称
-            # name = items["title"]  # 业务流名称
-            print(name)
-            # 创建测试结果记录器
-            result = TestResult(name=name, all=len(items["Cases"]))
-            # 遍历测试集执行用例
-            for testcase in items["Cases"]:
-                self.perform(testcase, result, ENV)
-            # 获取每条记录器的结果,保存起来
-            self.result.append(result.get_result_info())
-        # 断开连接
-        db.close_db_connection()
-        return self.result[0]
+            # 遍历所有测试用例
+            for items in self.cases:
+                ENV.clear()
+                ENV.update(self.env_data)
+                name = items["name"]  # 业务流名称
+                print(f"开始执行测试套件: {name}")
+                
+                # 创建测试结果记录器
+                result = TestResult(name=name, all=len(items["Cases"]))
+                
+                # 遍历测试集执行用例
+                for i, testcase in enumerate(items["Cases"]):
+                    try:
+                        self.perform(testcase, result, ENV)
+                    except Exception as e:
+                        print(f"用例执行失败: {testcase.get('title', '未知用例')} - {str(e)}")
+                        # 继续执行下一个用例，而不是中断整个套件
+                        continue
+                
+                # 获取每条记录器的结果,保存起来
+                self.result.append(result.get_result_info())
+                
+                # 每执行完一个套件，释放一些资源
+                if hasattr(self, 'env_object') and self.env_object:
+                    # 清理环境变量，避免内存累积
+                    if hasattr(self.env_object, 'debug_global_variable'):
+                        self.env_object.debug_global_variable.clear()
+        
+        finally:
+            # 确保数据库连接被关闭
+            try:
+                db.close_db_connection()
+            except Exception as e:
+                print(f"关闭数据库连接时出错: {str(e)}")
+        
+        return self.result[0] if self.result else {"name": "空结果", "all": 0, "success": 0, "fail": 0, "error": 0, "cases": []}
 
     def perform(self, case, result, env):
         c = BaseCase()

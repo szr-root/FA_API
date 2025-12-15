@@ -178,8 +178,19 @@ class BaseCase(CaseLogHandel):
         # 处理用例的请求数据(替换请求参数中的变量，将数据转换为requests发送请求所需要的格式)
         request_data = self.__handler_requests_data(data, env)
         start_time = time.time()
-        # 发送请求
-        response = requests.request(**request_data)
+        timeout_cfg = env.get('ENV').get('timeout', (5, 30))
+        if isinstance(timeout_cfg, (int, float)):
+            timeout_cfg = (5, timeout_cfg)
+        verify_cfg = env.get('ENV').get('verify', True)
+        try:
+            response = requests.request(**request_data, timeout=timeout_cfg, verify=verify_cfg)
+        except Exception as e:
+            self.status = "错误"
+            self.status_code = 0
+            self.response_header = {}
+            self.response_body = str(e)
+            self.run_time = str(round(time.time() - start_time, 2)) + 's'
+            return self.response_body
         self.requests_header = self.convert_to_dict(response.request.headers)
         self.response_header = self.convert_to_dict(response.headers)
         self.response_body = response.text
