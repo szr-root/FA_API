@@ -24,11 +24,11 @@ MEDIA_ROOT = os.path.join(BASE_DIR, 'files')
 
 # ############## 数据库的配置信息 ###############
 DATABASE = {
-    'host': 'localhost',
-    'port': 3306,
-    'user': 'root',
-    'password': 'songzhaoruizx',
-    'database': 'api_fastapi',
+    'host': os.getenv('DB_HOST'),
+    'port': os.getenv('DB_PORT'),
+    'user': os.getenv('DB_USER'),
+    'password': os.getenv('DB_PASSWORD'),
+    'database':os.getenv('DB_NAME'),
 }
 
 # ############## 项目中的所有应用的models ###############
