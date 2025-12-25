@@ -50,6 +50,7 @@ origins = [
     'http://localhost:5173',
     'http://localhost:5188',
     'http://localhost:5175',
+    "https://testapi-1301806088.cos.ap-chengdu.myqcloud.com",
     '*'
 ]
 

@@ -90,7 +90,9 @@ REDIS_CONFIG = {
 TENCENT_CONFIG={
     "secret_id": os.getenv('COS_SECRET_ID'),
     "secret_key": os.getenv('COS_SECRET_KEY'),
-    "bucket": os.getenv('COS_BUCKET')
+    "bucket": os.getenv('COS_BUCKET'),
+    "region": os.getenv('COS_REGION', 'ap-chengdu'),
+    "custom_domain": os.getenv('COS_CUSTOM_DOMAIN', None)
 }
 
 if __name__ == '__main__':

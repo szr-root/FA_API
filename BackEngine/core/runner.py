@@ -149,14 +149,12 @@ class TestRunner:
         """
         db_config = self.env_data.pop('DB')
         if db_config == '':
+            import common.settings
+            config = common.settings.DATABASE
             db_config = [{
                 "name": "local",
                 "type": "mysql",
-                "config": {"host": "127.0.0.1",
-                           "port": 3306,
-                           "user": "root",
-                           "password": "songzhaoruizx"
-                           }
+                "config": config
             }]
         
         # 初始数据库连接

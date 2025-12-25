@@ -8,8 +8,7 @@
 
 from qcloud_cos import CosConfig
 from qcloud_cos import CosS3Client
-import re
-import os
+from qcloud_cos.cos_exception import CosServiceError
 import logging
 from common import settings
 
@@ -32,24 +31,29 @@ class URLLogHandler(logging.Handler):
             self.url = match.group(1)
 
 
-# 创建日志处理器实例
 url_handler = URLLogHandler()
-
-# 正常情况日志级别使用 INFO，需要定位时可以修改为 DEBUG，此时 SDK 会打印和服务端的通信信息
-# logging.basicConfig(level=logging.INFO, stream=sys.stdout)
-logging.basicConfig(level=logging.INFO, handlers=[url_handler])
+logger = logging.getLogger(__name__)
+if not logger.handlers:
+    handler = logging.StreamHandler()
+    formatter = logging.Formatter('%(asctime)s %(levelname)s %(name)s: %(message)s')
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
+logger.setLevel(logging.INFO)
 
 # 1. 设置用户属性, 包括 secret_id, secret_key, region等。Appid 已在 CosConfig 中移除，请在参数 Bucket 中带上 Appid。Bucket 由 BucketName-Appid 组成
-secret_id = settings.TENCENT_CONFIG['secret_id']
-print(secret_id)
-# 用户的 SecretId，建议使用子账号密钥，授权遵循最小权限指引，降低使用风险。子账号密钥获取可参见 https://cloud.tencent.com/document/product/598/37140
+secret_id = settings.TENCENT_CONFIG.get('secret_id')
+secret_key = settings.TENCENT_CONFIG.get('secret_key')
+region = settings.TENCENT_CONFIG.get('region', 'ap-chengdu')
+token = None
+scheme = 'https'
+bucket = settings.TENCENT_CONFIG.get('bucket')
+custom_domain = settings.TENCENT_CONFIG.get('custom_domain')
 
-secret_key = settings.TENCENT_CONFIG['secret_key']
-# 用户的 SecretKey，建议使用子账号密钥，授权遵循最小权限指引，降低使用风险。子账号密钥获取可参见 https://cloud.tencent.com/document/product/598/37140
-region = 'ap-chengdu'  # 替换为用户的 region，已创建桶归属的 region 可以在控制台查看，https://console.cloud.tencent.com/cos5/bucket
-# COS 支持的所有 region 列表参见 https://cloud.tencent.com/document/product/436/6224
-token = None  # 如果使用永久密钥不需要填入 token，如果使用临时密钥需要填入，临时密钥生成和使用指引参见 https://cloud.tencent.com/document/product/436/14048
-scheme = 'https'  # 指定使用 http/https 协议来访问 COS，默认为 https，可不填
+if not secret_id or not secret_key or not bucket:
+    raise RuntimeError('COS配置缺失：请在环境变量中设置 COS_SECRET_ID、COS_SECRET_KEY、COS_BUCKET')
+
+if '-' not in bucket:
+    logger.warning('COS Bucket 看起来不包含 AppId 后缀，标准格式为 <BucketName-APPID>')
 
 config = CosConfig(Region=region, SecretId=secret_id, SecretKey=secret_key, Token=token, Scheme=scheme)
 client = CosS3Client(config)
@@ -58,21 +62,33 @@ client = CosS3Client(config)
 # print(sys.stdout)
 
 
-def upload_file_cos(file_name, file_bytes: bytes):
+def _build_object_url(key: str) -> str:
+    if custom_domain:
+        return f'https://{custom_domain}/{key}'
+    return f'https://{bucket}.cos.{region}.myqcloud.com/{key}'
+
+
+def upload_file_cos(file_name, file_bytes: bytes, content_type: str | None = None):
     """
     上传文件
     :param file_name: 文件路径
     :param file_bytes: 二进制图片数据
     :return:
     """
-    response = client.put_object(
-        Bucket=Bucket,
-        Body=file_bytes,
-        Key=file_name,
-        EnableMD5=False
-    )
-    img_url = url_handler.url
-    return img_url
+    try:
+        params = {
+            'Bucket': bucket,
+            'Body': file_bytes,
+            'Key': file_name,
+            'EnableMD5': False
+        }
+        if content_type:
+            params['ContentType'] = content_type
+        client.put_object(**params)
+        return _build_object_url(file_name)
+    except CosServiceError as e:
+        logger.error(f'COS上传失败: code={e.get_error_code()} msg={e.get_error_msg()} request_id={e.get_request_id()}')
+        raise
 
 
 def check_file_exists(file_name):
@@ -81,25 +97,28 @@ def check_file_exists(file_name):
     :param file_name: 文件路径
     :return:
     """
-    response = client.object_exists(
-        Bucket=Bucket,
-        Key=file_name)
-    return response
+    try:
+        return client.object_exists(Bucket=bucket, Key=file_name)
+    except CosServiceError as e:
+        logger.error(f'COS检查失败: code={e.get_error_code()} msg={e.get_error_msg()} request_id={e.get_request_id()}')
+        return False
 
 
 def del_file(file_name):
-    response = client.delete_object(
-        Bucket=Bucket,
-        Key=file_name
-    )
+    try:
+        client.delete_object(Bucket=bucket, Key=file_name)
+        return True
+    except CosServiceError as e:
+        logger.error(f'COS删除失败: code={e.get_error_code()} msg={e.get_error_msg()} request_id={e.get_request_id()}')
+        return False
 
 
 if __name__ == '__main__':
-    with open('pro01.png', 'rb') as f:
-        file_bytes = f.read()
-    url = upload_file_cos('pro01.png', file_bytes)
-    res = check_file_exists('pro01.png')
-    print(res)
-    # del_file('earth.png')
-    # res = check_file_exists('earth.png')
-    # print('2////', res)
+    # with open('file.txt', 'r') as f:
+    #     file_bytes = f.read()
+    # url = upload_file_cos('file.txt', file_bytes)
+    # res = check_file_exists('file.txt')
+    # print(res)
+    del_file('IPS.txt')
+    res = check_file_exists('IPS.txt')
+    print('2////', res)

@@ -159,7 +159,7 @@ async def del_env(env_id: int):
 # ############################################# 文件相关 #############################################
 
 # 上传文件
-@file_router.post("/files", tags=["项目"], summary="创建测试文件", status_code=201)
+@file_router.post("/files/", tags=["项目"], summary="创建测试文件", status_code=201)
 async def add_testfile(file: UploadFile):
     size = file.size
     name = file.filename
@@ -174,25 +174,28 @@ async def add_testfile(file: UploadFile):
     #     raise HTTPException(detail="文件已存在", status_code=400)
 
     file_type = file.content_type
+    is_txt = file_type == 'text/plain' or name.lower().endswith('.txt')
 
     # os.makedirs(os.path.dirname(file_path), exist_ok=True)
-    img_url = upload_file_cos(file_name=name, file_bytes=file.file.read())
+    file_bytes = file.file.read()
+    upload_ct = 'text/plain' if is_txt else file_type
+    img_url = upload_file_cos(file_name=name, file_bytes=file_bytes, content_type=upload_ct)
 
     # 修改info字段值
-    info = json.dumps([name, file_type, img_url])
+    info = json.dumps([name, upload_ct, img_url])
     testfile = await TestFile.create(file=name, info=info)
     return testfile
 
 
 # 获取测试文件
-@file_router.get("/files", tags=["项目"], summary="获取测试文件")
+@file_router.get("/files/", tags=["项目"], summary="获取测试文件")
 async def get_testfile():
     test_files = await TestFile.all()
     return [testfile for testfile in test_files]
 
 
 # 删除测试文件
-@file_router.delete("/files/{file_id}", tags=["项目"], summary="删除测试文件", status_code=204)
+@file_router.delete("/files/{file_id}/", tags=["项目"], summary="删除测试文件", status_code=204)
 async def del_testfile(file_id: int):
     testfile = await TestFile.get_or_none(id=file_id)
     if not testfile:
@@ -231,6 +234,8 @@ async def show_testfile(file_name: str):
         content_type = 'image/gif'
     elif testfile.file.endswith('.mp4'):
         content_type = 'video/mp4'
+    elif testfile.file.endswith('.txt'):
+        content_type = 'text/plain'
     response.headers['Content-Type'] = content_type
     # 设置 Content-Disposition
     response.headers['Content-Disposition'] = f'inline; filename="{testfile.file}"'

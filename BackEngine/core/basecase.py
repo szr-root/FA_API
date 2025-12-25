@@ -7,6 +7,7 @@ import re
 import time
 import asyncio
 import requests
+import io
 # 导入内置的测试工具函数
 from requests.structures import CaseInsensitiveDict
 
@@ -91,6 +92,8 @@ class BaseCase(CaseLogHandel):
         # 删除生成器对象
         delattr(self, 'script_hook')
 
+
+
     def __handler_requests_data(self, data, env):
         """处理请求数据的方法"""
         # global ENV
@@ -123,12 +126,61 @@ class BaseCase(CaseLogHandel):
             if headers.get('Content-Type') == 'application/json':
                 request_data['json'] = request.get('json')
                 self.request_body = request.get('json')
-            if headers.get('Content-Type') == 'application/x-www-form-urlencoded':
+            elif headers.get('Content-Type') == 'application/x-www-form-urlencoded':
                 request_data['data'] = request.get('data')
                 self.request_body = request.get('data')
             elif 'multipart/form-data' in headers.get('Content-Type'):
-                request_data['files'] = request.get('files')
-                self.request_body = request.get('files')
+                files_val = request.get('files')
+                if files_val:
+                    request_data['files'] = files_val
+                    headers.pop('Content-Type', None)
+                    self.request_body = {'files': 'attached'}
+                else:
+                    file_val = request.get('file')
+                    if isinstance(file_val, (list, tuple)):
+                        built_files = []
+                        for item in file_val:
+                            try:
+                                field = item[0]
+                                meta = item[1]
+                                name = str(meta[0])
+                                mime = str(meta[1]) if len(meta) > 1 else None
+                                src = meta[2] if len(meta) > 2 else None
+                                src_str = str(src).strip().strip('`"\'') if src is not None else ''
+                                if src_str.startswith('http'):
+                                    r = requests.get(src_str, stream=True)
+                                    r.raise_for_status()
+                                    content = r.content
+                                else:
+                                    content = src_str.encode('utf-8') if src_str else b''
+                                built_files.append((field, (name, io.BytesIO(content), mime)))
+                            except Exception:
+                                continue
+                        if built_files:
+                            request_data['files'] = built_files
+                        headers.pop('Content-Type', None)
+                        self.request_body = {'files': 'attached'}
+                    elif isinstance(file_val, dict):
+                        name = file_val.get('name') or 'upload.bin'
+                        mime = file_val.get('type')
+                        if file_val.get('content') is not None:
+                            content = file_val.get('content')
+                            request_data['files'] = {'file': (name, content, mime)}
+                            headers.pop('Content-Type', None)
+                            self.request_body = {'file': name}
+                        elif file_val.get('url'):
+                            import tempfile
+                            import os
+                            temp_dir = tempfile.gettempdir()
+                            filename = os.path.join(temp_dir, name)
+                            with requests.get(file_val['url'], stream=True) as r:
+                                r.raise_for_status()
+                                with open(filename, 'wb') as f:
+                                    for chunk in r.iter_content(chunk_size=8192):
+                                        f.write(chunk)
+                            request_data['files'] = {'file': (os.path.basename(filename), open(filename, 'rb'), mime)}
+                            headers.pop('Content-Type', None)
+                            self.request_body = {'file': name}
         else:
             request_data['json'] = request.get('json')
             self.request_body = request.get('json')
@@ -138,23 +190,30 @@ class BaseCase(CaseLogHandel):
         return request_data
 
     def replace_data(self, data, env):
-        """替换用例中的变量"""
-        # 数据替换的规则
-        pattern = r'\${{(.+?)}}'
-        # 将传入的参数转换为字符串
-        data = str(data)
-        while re.search(pattern, data):
-            # 获取匹配到的内容
-            match = re.search(pattern, data)
-            # 获取匹配到的内容中的变量
-            key = match.group(1)
-            # 获取全局变量中的值
-            value = env.get('ENV').get(key)
-            self.info_log("开始替换变量, 将 ", key, " 替换成 ", value)
-            # 将匹配到的内容中的变量替换为全局变量中的值
-            data = data.replace(match.group(), str(value))
-
-        return eval(data)
+        pattern = re.compile(r'\${{(.+?)}}')
+        def repl_in_str(s):
+            def _r(m):
+                key = m.group(1)
+                value = env.get('ENV').get(key)
+                return '' if value is None else str(value)
+            return pattern.sub(_r, s)
+        def walk(obj):
+            if isinstance(obj, str):
+                return repl_in_str(obj)
+            if isinstance(obj, dict):
+                out = {}
+                for k, v in obj.items():
+                    if k == 'files':
+                        out[k] = v
+                    else:
+                        out[k] = walk(v)
+                return out
+            if isinstance(obj, list):
+                return [walk(v) for v in obj]
+            if isinstance(obj, tuple):
+                return tuple(walk(v) for v in obj)
+            return obj
+        return walk(data)
 
     def convert_to_dict(self, obj):
         """Recursively converts a CaseInsensitiveDict to a regular dict."""
